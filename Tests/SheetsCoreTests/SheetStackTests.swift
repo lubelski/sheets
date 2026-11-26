@@ -97,6 +97,33 @@ import Testing
         #expect(stack.entries == [ID.acmeWeb, ID.claude])
     }
 
+    /// Clicking one row over and over toggles its sheet every time, with no click that does
+    /// nothing. A row on the top sheet opens its pane. Once that pane covers the row's sheet,
+    /// the row is in a covered strip, and a click there goes back.
+    @Test func clickingTheSameRowAgainAndAgainTogglesItsSheetEveryTime() {
+        let settings = SettingsSection.settingsID
+        let general = SettingsSection.general.paneID
+        var stack = SheetStack([settings])
+        func click() {
+            // What the views call: the row's own action on the top sheet, the strip's on a
+            // covered one.
+            if stack.depth == 1 { stack.open(general, from: 1) } else { stack.clickStrip(at: 1, on: general) }
+        }
+        click()
+        #expect(stack.entries == [settings, general])
+        click()
+        #expect(stack.entries == [settings])
+        click()
+        #expect(stack.entries == [settings, general])
+        click()
+        #expect(stack.entries == [settings])
+
+        // A click on the strip that lands after the sheet already closed, as while it is still
+        // sliding away, opens the row again rather than doing nothing.
+        stack.clickStrip(at: 1, on: general)
+        #expect(stack.entries == [settings, general])
+    }
+
     @Test func descriptionJoinsTheIDs() {
         #expect(SheetStack(["a", "b"]).description == "a/b")
     }
