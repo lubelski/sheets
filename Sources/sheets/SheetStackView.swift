@@ -71,8 +71,10 @@ struct SheetStackView<Sheet: View>: View {
         .background {
             // Escape closes the top sheet. With only the sidebar there is nothing to close, so
             // there is no button and Escape means what it meant before. While a title is being
-            // renamed, Escape belongs to the rename.
-            if !stack.isAtSidebar && model.renaming == nil {
+            // renamed, Escape belongs to the rename, and while a terminal on top runs its shell,
+            // to the terminal: shells and programs such as vim need it. Command-[ (Go > Back)
+            // closes the top sheet in every case.
+            if !stack.isAtSidebar && model.renaming == nil && !model.escapeGoesToTerminal {
                 Button("Back") { model.goBack() }
                     .keyboardShortcut(.cancelAction)
                     .opacity(0)
@@ -130,21 +132,32 @@ struct SheetStackView<Sheet: View>: View {
 
 // MARK: - Parts a sheet is built from
 
-/// A sheet's title bar: the pane's name, centered, over a faint line.
+/// A sheet's title bar: the pane's name, centered, over a faint line. A detail, such as the
+/// title a terminal's shell set, follows the name in a lighter weight and color.
 struct SheetTitleBar: View {
     let title: String
+    var detail: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity)
-                .frame(height: 32)
-                .padding(.horizontal, 16)
-                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .layoutPriority(1)
+                if let detail, detail != title {
+                    Text(detail)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity)
+            .frame(height: 32)
+            .padding(.horizontal, 16)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             Divider().opacity(0.6)
         }
     }

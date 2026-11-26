@@ -290,8 +290,10 @@ import Testing
     }
 
     @Test func aPaneSavedWithoutAnEngineUsesTheStandardOne() throws {
-        let json = #"{"id":"t","kind":"terminal","title":"t","children":[]}"#
-        let pane = try JSONDecoder().decode(Pane.self, from: Data(json.utf8))
+        // A pane saved before panes had engines has no engine key at all.
+        let data = try JSONEncoder().encode(Pane(id: "t", kind: .terminal, title: "t"))
+        #expect(String(data: data, encoding: .utf8)?.contains("engine") == false)
+        let pane = try JSONDecoder().decode(Pane.self, from: data)
         #expect(pane.engine == nil)
         #expect(TerminalEngineRegistry([engine]).engine(for: pane.engine)?.id == .standard)
     }

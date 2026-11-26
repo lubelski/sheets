@@ -33,11 +33,24 @@ enum PreviewRenderer {
         let settings = SettingsSection.settingsID
         // A placeholder home folder, so the first-launch render names no real one.
         let home = "/home/someone"
-        func sample(_ stack: SheetStack, renaming: PaneID? = nil) -> () -> SheetsModel {
+        // Terminals get sessions that run nothing, so a render starts no shell and draws a
+        // stand-in where the terminal goes. A test of what a shell reports plays the shell.
+        func terminals() -> TerminalSessionStore {
+            TerminalSessionStore(engines: TerminalEngineRegistry([StandInTerminalEngine()])) { pane in
+                TerminalLaunch(executable: "/bin/zsh", folder: pane.folder ?? home, environment: [:])
+            }
+        }
+        func sample(
+            _ stack: SheetStack, renaming: PaneID? = nil, shellReports: [(PaneID, TerminalEvent)] = []
+        ) -> () -> SheetsModel {
             {
                 let model = SheetsModel(
-                    tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false, homeFolder: home)
+                    tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false, homeFolder: home,
+                    terminals: terminals())
                 model.renaming = renaming
+                for (id, event) in shellReports {
+                    model.terminals?.record(for: id)?.session.events?(event)
+                }
                 return model
             }
         }
@@ -45,6 +58,9 @@ enum PreviewRenderer {
             ("sidebar", sample(SheetStack())),
             ("group-open", sample(SheetStack([ID.acmeWeb]))),
             ("terminal-over-group", sample(SheetStack([ID.acmeWeb, ID.devServer]))),
+            ("terminal-with-shell-title", sample(
+                SheetStack([ID.acmeWeb, ID.devServer]), shellReports: [(ID.devServer, .titleChanged("npm run dev"))])),
+            ("terminal-exited", sample(SheetStack([ID.scratch]), shellReports: [(ID.scratch, .exited(status: 1))])),
             ("page-over-terminal", sample(SheetStack([ID.acmeWeb, ID.devServer, ID.localhost]))),
             ("settings-open", sample(SheetStack([settings]))),
             ("settings-general-open", sample(SheetStack([settings, SettingsSection.general.paneID]))),
@@ -53,7 +69,8 @@ enum PreviewRenderer {
             ("first-launch", {
                 let start = PaneEditor.firstLaunch(homeFolder: home, id: "first")
                 return SheetsModel(
-                    tree: start.tree, defaults: defaults, stack: start.stack, animates: false, homeFolder: home)
+                    tree: start.tree, defaults: defaults, stack: start.stack, animates: false, homeFolder: home,
+                    terminals: terminals())
             }),
         ]
         let looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
@@ -107,4 +124,25 @@ enum PreviewRenderer {
         window.contentView = nil
         return rep
     }
+}
+
+/// An engine for renders. Its sessions run nothing and have no view, so a terminal's sheet
+/// draws its stand-in.
+@MainActor
+private struct StandInTerminalEngine: TerminalEngine {
+    let id = TerminalEngineID.standard
+    let name = "Stand-in"
+
+    func makeSession() -> any TerminalSession { StandInTerminalSession() }
+}
+
+@MainActor
+private final class StandInTerminalSession: TerminalSession {
+    var events: ((TerminalEvent) -> Void)?
+    func start(_ launch: TerminalLaunch) {}
+    func resize(columns: Int, rows: Int) {}
+    func send(_ text: String) {}
+    func apply(_ appearance: TerminalAppearance) {}
+    func openWithDefaultHandler(_ link: TerminalLink) {}
+    func end() {}
 }

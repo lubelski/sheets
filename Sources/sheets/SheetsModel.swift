@@ -3,9 +3,10 @@ import Observation
 import SheetsCore
 import SwiftUI
 
-/// The window's state: the pane tree and the stack of sheets on screen. The sidebar, the
-/// sheets, and the menu commands all change the tree and the stack through here, so every
-/// change animates the same way and Settings remembers its section.
+/// The window's state: the pane tree, the stack of sheets on screen, and the terminals' live
+/// sessions. The sidebar, the sheets, and the menu commands all change the tree and the stack
+/// through here, so every change animates the same way, Settings remembers its section, and
+/// the sessions follow the tree.
 @MainActor
 @Observable
 final class SheetsModel {
@@ -15,6 +16,9 @@ final class SheetsModel {
     var renaming: PaneID?
     /// A pane with children waiting for the person to confirm closing it, if any.
     var pendingClose: PaneID?
+    /// One live session per terminal pane, or nil where terminals show a stand-in. See
+    /// `TerminalSessionStore` for when sessions start and end.
+    let terminals: TerminalSessionStore?
     /// Where a new terminal starts when no group above it has a folder.
     @ObservationIgnored let homeFolder: String
     @ObservationIgnored private let settingsMemory: SettingsSectionMemory
@@ -24,17 +28,38 @@ final class SheetsModel {
     /// stack, and the sheets' transitions read it while they come and go.
     @ObservationIgnored private var recorded = (change: SheetStackChange.none, stack: SheetStack())
 
+    @ObservationIgnored private var quitObserver: NSObjectProtocol?
+
     /// `defaults` is where Settings keeps its open section. `tree` gets Settings added if it
-    /// does not have it.
+    /// does not have it. `terminals` runs the terminals' shells. Without it, terminals show a
+    /// stand-in.
     init(
         tree: PaneTree, defaults: UserDefaults = .standard, stack: SheetStack = SheetStack(), animates: Bool = true,
-        homeFolder: String = NSHomeDirectory()
+        homeFolder: String = NSHomeDirectory(), terminals: TerminalSessionStore? = nil
     ) {
         self.tree = tree.addingSettings()
         self.stack = stack
         self.homeFolder = homeFolder
         self.settingsMemory = SettingsSectionMemory(defaults: defaults)
         self.animates = animates
+        self.terminals = terminals
+        terminals?.linkClicked = { _, link, session in
+            // A clicked link opens in the default browser for now, after the engine's own
+            // checks. This is where a page will slide over its terminal instead.
+            session.openWithDefaultHandler(link)
+        }
+        syncTerminals()
+    }
+
+    /// Ends every shell when the app quits. Only the app's own model does this, not one made
+    /// for a render.
+    func endTerminalsOnQuit() {
+        guard quitObserver == nil, let terminals else { return }
+        quitObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { terminals.endAll() }
+        }
     }
 
     /// A click on a sidebar row: the screen shows that pane's whole path.
@@ -70,10 +95,36 @@ final class SheetsModel {
     }
 
     /// A model that starts the way the app does the first time: one terminal in the home
-    /// folder, open.
+    /// folder, open, running the person's login shell.
     static func firstLaunch(defaults: UserDefaults = .standard, homeFolder: String = NSHomeDirectory()) -> SheetsModel {
         let start = PaneEditor.firstLaunch(homeFolder: homeFolder)
-        return SheetsModel(tree: start.tree, defaults: defaults, stack: start.stack, homeFolder: homeFolder)
+        let version = BuildInfo.current().version
+        let terminals = TerminalSessionStore(engines: TerminalEngines.registry()) { pane in
+            TerminalLaunch.loginShell(in: pane.folder, programVersion: version)
+        }
+        let model = SheetsModel(
+            tree: start.tree, defaults: defaults, stack: start.stack, homeFolder: homeFolder, terminals: terminals)
+        model.endTerminalsOnQuit()
+        return model
+    }
+
+    // MARK: Terminals
+
+    /// True when Escape belongs to the terminal on top, so it does not close the sheet. See
+    /// `TerminalSessionStore.escapeGoesToTerminal(top:)`.
+    var escapeGoesToTerminal: Bool {
+        terminals?.escapeGoesToTerminal(top: stack.top) ?? false
+    }
+
+    /// Starts a terminal's shell again after it exited.
+    func restartTerminal(_ id: PaneID) {
+        guard let pane = tree.pane(id) else { return }
+        terminals?.restart(pane)
+    }
+
+    /// Starts the shells of terminals that are now shown, and ends those whose panes are gone.
+    private func syncTerminals() {
+        terminals?.sync(tree: tree, stack: stack)
     }
 
     // MARK: Editing the tree
@@ -148,6 +199,7 @@ final class SheetsModel {
         var editor = PaneEditor(tree: tree, stack: stack)
         mutate(&editor)
         guard editor.tree != tree || editor.stack != stack else { return }
+        defer { syncTerminals() }
         let change = SheetStackChange(from: stack, to: editor.stack, in: editor.tree)
         settingsMemory.note(editor.stack)
         recorded = (change, editor.stack)
@@ -175,6 +227,7 @@ final class SheetsModel {
         mutate(&new)
         let change = SheetStackChange(from: stack, to: new, in: tree)
         guard change != .none else { return }
+        defer { syncTerminals() }
         settingsMemory.note(new)
         recorded = (change, new)
         guard animates else {

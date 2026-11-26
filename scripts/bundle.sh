@@ -11,8 +11,9 @@
 #                            these two never updates itself.
 #   SHEETS_SIGNING_IDENTITY  The signing identity. See "Sign" below for the default.
 #
-# Not here yet: entitlements. The app is not sandboxed, since a terminal has to start shells
-# and other programs as the person who runs it.
+# The app has no entitlements and is not sandboxed, since a terminal has to start shells and
+# other programs as the person who runs it. Starting them needs no entitlement under the
+# hardened runtime.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -93,6 +94,30 @@ if [[ -n "${SHEETS_FEED_URL:-}" && -n "${SHEETS_PUBLIC_KEY:-}" ]]; then
   <key>SUAutomaticallyUpdate</key><true/>"
 fi
 
+# Programs run in a terminal ask macOS for access under the app's name, so the app says why
+# for each kind of access a program might ask for. Without a reason, macOS refuses some of
+# these without asking.
+privacy() { printf '<key>%s</key><string>A program you run in a terminal wants %s.</string>\n  ' "$1" "$2"; }
+PRIVACY_KEYS="$(
+  privacy NSDesktopFolderUsageDescription "to use files in your Desktop folder"
+  privacy NSDocumentsFolderUsageDescription "to use files in your Documents folder"
+  privacy NSDownloadsFolderUsageDescription "to use files in your Downloads folder"
+  privacy NSRemovableVolumesUsageDescription "to use files on a removable disk"
+  privacy NSNetworkVolumesUsageDescription "to use files on a network volume"
+  privacy NSFileProviderDomainUsageDescription "to use files kept by a cloud storage provider"
+  privacy NSLocalNetworkUsageDescription "to connect to devices on your local network"
+  privacy NSAppleEventsUsageDescription "to control another app"
+  privacy NSSystemAdministrationUsageDescription "to change system settings"
+  privacy NSCameraUsageDescription "to use the camera"
+  privacy NSMicrophoneUsageDescription "to use the microphone"
+  privacy NSBluetoothAlwaysUsageDescription "to use Bluetooth"
+  privacy NSContactsUsageDescription "to use your contacts"
+  privacy NSCalendarsFullAccessUsageDescription "to use your calendars"
+  privacy NSRemindersFullAccessUsageDescription "to use your reminders"
+  privacy NSPhotoLibraryUsageDescription "to use your photos"
+  privacy NSLocationUsageDescription "to use your location"
+)"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -111,6 +136,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>$MIN_OS</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
+  $PRIVACY_KEYS
   $UPDATER_KEYS
 </dict>
 </plist>

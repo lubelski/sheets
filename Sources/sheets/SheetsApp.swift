@@ -39,6 +39,13 @@ struct SheetsApp: App {
                 Button("Rename…") { model.selection.map(model.startRenaming) }
                     .disabled(!(model.selection.map(model.tree.canEdit) ?? false))
             }
+            // Back closes the top sheet, as Escape does. It works while a terminal has the
+            // keyboard, where Escape goes to the shell.
+            CommandMenu("Go") {
+                Button("Back") { model.goBack() }
+                    .keyboardShortcut("[", modifiers: .command)
+                    .disabled(model.stack.isAtSidebar)
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") { model.openSettings() }
                     .keyboardShortcut(",", modifiers: .command)

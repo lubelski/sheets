@@ -22,7 +22,9 @@ struct MainWindowView: View {
             switch pane.kind {
             case .group:
                 GroupSheet(model: model, pane: pane, openedID: level.openedID, open: open)
-            case .terminal, .page:
+            case .terminal:
+                TerminalSheet(model: model, pane: pane, isTop: !level.isCovered)
+            case .page:
                 PlaceholderSheet(pane: pane)
             case .settings:
                 if let section = SettingsSection(paneID: pane.id) {
