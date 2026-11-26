@@ -13,7 +13,7 @@ struct SheetsApp: App {
         Window(AppName.display, id: "main") {
             MainWindowView(model: model, updater: updater)
                 .frame(minWidth: 640, minHeight: 400)
-                .standardTitleBar()
+                .standardTitleBar { TitleBarMenuButton(model: model, updater: updater) }
         }
         .defaultSize(width: 1000, height: 640)
         .windowResizability(.contentMinSize)

@@ -24,6 +24,8 @@ stack of sheets, and split layout are in place with tests.
 - Splits are placed by dwindle: a new pane takes half of the focused one.
 - Settings is a pane too, not a window. It is pinned at the bottom of the sidebar, Command-comma
   opens it, and each of its sections opens as a sheet over it.
+- The title bar says the app's name in the middle. A small `…` button at its trailing end opens
+  a menu of app-wide things: Check for Updates, Settings, and the version that is running.
 
 ## Using the stack
 
@@ -125,8 +127,8 @@ open build/sheets.app
 
 ## Looking at it without opening it
 
-`scripts/render-previews.sh` draws the main window offscreen, mostly with sample panes, and writes
-a PNG of each key state in light and dark to `build/renders/`. It runs the app with
+`scripts/render-previews.sh` draws the main window offscreen, title bar included, mostly with
+sample panes, and writes a PNG of each key state in light and dark to `build/renders/`. It runs the app with
 `--render-previews <folder>`, which puts no window on screen, shows no Dock icon, takes no
 focus, and uses a throwaway preferences suite. It starts no shell: a terminal's sheet draws a
 few stand-in lines where the live terminal would be.
@@ -152,8 +154,9 @@ The app updates itself with [Sparkle](https://sparkle-project.org). It reads `ap
 from the latest GitHub Release of this repo, and installs updates signed with the key in
 `scripts/sparkle-public-key.txt`.
 
-Only a release build has a feed. A plain `scripts/bundle.sh` build never updates itself and
-shows no Check for Updates item, so a development copy is never replaced by a release.
+Only a release build has a feed. A plain `scripts/bundle.sh` build never updates itself, so a
+development copy is never replaced by a release. It shows no Check for Updates item in the app
+menu, and the title bar's menu shows the item dimmed.
 
 ```sh
 scripts/release.sh --check          # says whether this Mac can release now, changes nothing

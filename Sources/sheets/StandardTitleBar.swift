@@ -9,14 +9,32 @@ enum AppName {
 /// Gives the window it sits in a plain title bar with the app's name centered in it, so every
 /// window says which app it belongs to. The content starts below the bar instead of running
 /// under it, and there is no toolbar, which is what lets the title sit in the middle.
+///
+/// A view can sit at the trailing end of the bar, in a title bar accessory. The accessory is
+/// part of the window's frame, not its content, so nothing in the content, such as a sheet
+/// sliding over, can cover it or take its clicks. The name stays centered on the whole bar.
 private struct StandardTitleBar: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { TitleBarView() }
+    let trailing: AnyView
+
+    func makeNSView(context: Context) -> NSView { TitleBarView(trailing: trailing) }
 
     func updateNSView(_ view: NSView, context: Context) {
-        (view as? TitleBarView)?.apply()
+        guard let view = view as? TitleBarView else { return }
+        view.trailing = trailing
+        view.apply()
     }
 
     final class TitleBarView: NSView {
+        var trailing: AnyView
+
+        init(trailing: AnyView) {
+            self.trailing = trailing
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("not used") }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             apply()
@@ -24,6 +42,8 @@ private struct StandardTitleBar: NSViewRepresentable {
 
         /// Marks the label this view adds to the title bar, so it is added once per window.
         private static let labelID = NSUserInterfaceItemIdentifier("StandardTitleBarLabel")
+        /// Marks the accessory this view adds to the title bar, so it is added once per window.
+        private static let trailingID = NSUserInterfaceItemIdentifier("StandardTitleBarTrailing")
 
         func apply() {
             guard let window else { return }
@@ -39,6 +59,26 @@ private struct StandardTitleBar: NSViewRepresentable {
             if window.title != AppName.display { window.title = AppName.display }
             window.titleVisibility = .hidden
             addCenteredLabel(to: window)
+            setTrailing(in: window)
+        }
+
+        /// Puts the trailing view in an accessory at the end of the bar, or updates the one
+        /// already there.
+        private func setTrailing(in window: NSWindow) {
+            if let existing = window.titlebarAccessoryViewControllers.first(where: { $0.identifier == Self.trailingID }),
+               let hosting = existing.view as? NSHostingView<AnyView> {
+                hosting.rootView = trailing
+                return
+            }
+            let hosting = NSHostingView(rootView: trailing)
+            hosting.sizingOptions = [.intrinsicContentSize]
+            // The accessory takes the width its view has when it is added.
+            hosting.frame.size = hosting.fittingSize
+            let accessory = NSTitlebarAccessoryViewController()
+            accessory.identifier = Self.trailingID
+            accessory.layoutAttribute = .trailing
+            accessory.view = hosting
+            window.addTitlebarAccessoryViewController(accessory)
         }
 
         private func addCenteredLabel(to window: NSWindow) {
@@ -61,8 +101,9 @@ private struct StandardTitleBar: NSViewRepresentable {
 }
 
 extension View {
-    /// A plain title bar that says the app's name, the same on every window.
-    func standardTitleBar() -> some View {
-        navigationTitle(AppName.display).background(StandardTitleBar())
+    /// A plain title bar that says the app's name, the same on every window, with `trailing`
+    /// at its trailing end.
+    func standardTitleBar(@ViewBuilder trailing: () -> some View = { EmptyView() }) -> some View {
+        navigationTitle(AppName.display).background(StandardTitleBar(trailing: AnyView(trailing())))
     }
 }
