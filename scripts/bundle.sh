@@ -75,6 +75,15 @@ for f in Assets.car AppIcon.icns; do
   fi
 done
 
+# Licenses of the code built into the app, which they ask to travel with it.
+SWIFTTERM_LICENSE=".build/checkouts/SwiftTerm/LICENSE"
+if [[ ! -f "$SWIFTTERM_LICENSE" ]]; then
+  echo "error: $SWIFTTERM_LICENSE is missing. swift build should have fetched it." >&2
+  exit 1
+fi
+mkdir -p "$APP/Contents/Resources/Licenses"
+cp "$SWIFTTERM_LICENSE" "$APP/Contents/Resources/Licenses/SwiftTerm.txt"
+
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
   GIT_COMMIT="$GIT_COMMIT-dirty"
