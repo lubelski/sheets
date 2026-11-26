@@ -2,43 +2,52 @@ import AppKit
 import SheetsCore
 import SwiftUI
 
-/// A terminal's sheet: its title bar, then the terminal, dark in light and dark mode alike.
+/// A terminal's sheet, under the title bar the stack draws: the terminal, dark in light and
+/// dark mode alike. The title bar shows any title the shell set.
 ///
 /// The terminal itself belongs to the pane's session, not to this sheet, so the sheet only
 /// borrows its view. When the shell exits by itself, a quiet line at the foot of the terminal
 /// says so, with a way to start it again. The pane stays.
+///
+/// A terminal with no session it can show says it could not be started, with a way to try
+/// again. It never draws a made-up shell: only a render asks for `TerminalStandIn`, through
+/// `drawsTerminalStandIn`.
 struct TerminalSheet: View {
     let model: SheetsModel
     let pane: Pane
     /// True when this sheet is on top, so its terminal has the keyboard.
     let isTop: Bool
+    @Environment(\.drawsTerminalStandIn) private var drawsStandIn
 
     var body: some View {
         let record = model.terminals?.record(for: pane.id)
         let appearance = model.terminalAppearance
-        VStack(spacing: 0) {
-            SheetTitleBar(title: pane.title, detail: record?.title)
-            ZStack(alignment: .bottom) {
-                Color(appearance.background)
-                Group {
-                    if let host = record?.session as? TerminalViewHosting {
-                        TerminalHostView(host: host, wantsFocus: isTop && model.renaming == nil)
-                    } else {
-                        TerminalStandIn(appearance: appearance)
-                    }
-                }
-                // Room between the text and the sheet's edges.
-                .padding(.leading, 10)
-                .padding(.trailing, 4)
-                .padding(.vertical, 6)
-                if let record, !record.status.isRunning {
-                    TerminalEndedLine(status: record.status, isTop: isTop, background: appearance.background) {
+        ZStack(alignment: .bottom) {
+            Color(appearance.background)
+            Group {
+                if let host = record?.session as? TerminalViewHosting {
+                    TerminalHostView(host: host, wantsFocus: isTop && model.renaming == nil)
+                } else if drawsStandIn {
+                    TerminalStandIn(appearance: appearance)
+                } else if model.tree.contains(pane.id) {
+                    // A pane that was closed has no session either, while its sheet leaves.
+                    // Only a pane still in the tree says its terminal could not start.
+                    TerminalNotStarted(reason: model.whyTerminalHasNoSession(pane.id), isTop: isTop) {
                         model.restartTerminal(pane.id)
                     }
                 }
             }
-            .environment(\.colorScheme, .dark)
+            // Room between the text and the sheet's edges.
+            .padding(.leading, 10)
+            .padding(.trailing, 4)
+            .padding(.vertical, 6)
+            if let record, !record.status.isRunning {
+                TerminalEndedLine(status: record.status, isTop: isTop, background: appearance.background) {
+                    model.restartTerminal(pane.id)
+                }
+            }
         }
+        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -87,6 +96,34 @@ struct TerminalEndedLine: View {
         case .exited(status: nil): "The shell was stopped."
         case .failedToStart(let reason): "The shell could not start: \(reason)"
         }
+    }
+}
+
+/// What a terminal with no session shows instead: a quiet message, why if it is known, and
+/// Start, which tries again. On the top sheet, Return presses Start.
+struct TerminalNotStarted: View {
+    let reason: String?
+    let isTop: Bool
+    let start: () -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("The terminal could not be started.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let reason {
+                Text(reason)
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            Button("Start", action: start)
+                .controlSize(.small)
+                .modifier(DefaultActionWhen(isOn: isTop))
+                .padding(.top, 6)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -170,7 +207,7 @@ final class TerminalContainerView: NSView {
 
 /// What a render draws where the terminal goes: a few lines of a shell, drawn in the
 /// terminal's font and colors. A live terminal does not draw into an offscreen render, and a
-/// render should not start a shell.
+/// render should not start a shell. Only a render draws it, by setting `drawsTerminalStandIn`.
 struct TerminalStandIn: View {
     let appearance: TerminalAppearance
 
@@ -206,6 +243,12 @@ struct TerminalStandIn: View {
                 height: appearance.cursorShape == .underline ? 2 : height)
             .frame(width: width, height: height, alignment: appearance.cursorShape == .underline ? .bottom : .leading)
     }
+}
+
+extension EnvironmentValues {
+    /// True in a render, where a terminal with no view draws `TerminalStandIn`. False in the
+    /// app, where it says it could not be started instead.
+    @Entry var drawsTerminalStandIn = false
 }
 
 extension Color {

@@ -16,8 +16,8 @@ final class SheetsModel {
     var renaming: PaneID?
     /// A pane with children waiting for the person to confirm closing it, if any.
     var pendingClose: PaneID?
-    /// One live session per terminal pane, or nil where terminals show a stand-in. See
-    /// `TerminalSessionStore` for when sessions start and end.
+    /// One live session per terminal pane, or nil when there is no way to run one, and a
+    /// terminal's sheet says so. See `TerminalSessionStore` for when sessions start and end.
     let terminals: TerminalSessionStore?
     /// The config file: the terminals' look and behavior, the starting folder, and the
     /// experiments' switches. A change to it, from Settings or from anywhere else, reaches the
@@ -35,8 +35,9 @@ final class SheetsModel {
     @ObservationIgnored private var quitObserver: NSObjectProtocol?
 
     /// `defaults` is where Settings keeps its open section. `tree` gets Settings added if it
-    /// does not have it. `terminals` runs the terminals' shells. Without it, terminals show a
-    /// stand-in. `config` is the config file, whose settings the terminals take.
+    /// does not have it. `terminals` runs the terminals' shells. Without it, a terminal's sheet
+    /// says its terminal could not be started. `config` is the config file, whose settings the
+    /// terminals take.
     init(
         tree: PaneTree, defaults: UserDefaults = .standard, stack: SheetStack = SheetStack(), animates: Bool = true,
         homeFolder: String = NSHomeDirectory(), terminals: TerminalSessionStore? = nil, config: ConfigStore
@@ -59,7 +60,7 @@ final class SheetsModel {
             terminals?.appearance = new.terminalAppearance
             terminals?.behavior = new.terminalBehavior
         }
-        syncTerminals()
+        terminals?.sync(tree: self.tree, stack: stack)
     }
 
     /// Where a new terminal starts when no group above it has a folder: the config file's
@@ -152,15 +153,18 @@ final class SheetsModel {
         terminals?.escapeGoesToTerminal(top: stack.top) ?? false
     }
 
-    /// Starts a terminal's shell again after it exited.
+    /// Starts a terminal's shell again after it exited, or for the first time when it has no
+    /// session.
     func restartTerminal(_ id: PaneID) {
         guard let pane = tree.pane(id) else { return }
         terminals?.restart(pane)
     }
 
-    /// Starts the shells of terminals that are now shown, and ends those whose panes are gone.
-    private func syncTerminals() {
-        terminals?.sync(tree: tree, stack: stack)
+    /// Why a terminal pane has no session, when that is known: there is no engine to run it.
+    func whyTerminalHasNoSession(_ id: PaneID) -> String? {
+        guard let terminals else { return "There is no terminal engine." }
+        let engine = tree.pane(id).flatMap { terminals.engines.engine(for: $0.engine) }
+        return engine == nil ? "There is no terminal engine." : nil
     }
 
     // MARK: Editing the tree
@@ -236,19 +240,31 @@ final class SheetsModel {
         var editor = PaneEditor(tree: tree, stack: stack)
         mutate(&editor)
         guard editor.tree != tree || editor.stack != stack else { return }
-        defer { syncTerminals() }
         let change = SheetStackChange(from: stack, to: editor.stack, in: editor.tree)
-        settingsMemory.note(editor.stack)
-        recorded = (change, editor.stack)
-        guard animates, change != .none else {
-            tree = editor.tree
-            stack = editor.stack
-            return
+        publish(editor.tree, editor.stack, change: change)
+    }
+
+    /// Puts a new tree and stack on screen, with the terminals' sessions following them.
+    ///
+    /// Every terminal the new stack shows gets its session before the stack is set. With the
+    /// session started after, a sheet put on screen by an animated change was drawn without
+    /// its session and not drawn again when the session arrived, so it showed no shell.
+    /// Sessions whose panes are gone end after, once their sheets have started to leave.
+    private func publish(_ newTree: PaneTree, _ newStack: SheetStack, change: SheetStackChange) {
+        terminals?.startSessions(shownIn: newStack, in: newTree)
+        settingsMemory.note(newStack)
+        recorded = (change, newStack)
+        let set = {
+            // A change to the stack alone leaves the tree as it is, so views of it do not redraw.
+            if self.tree != newTree { self.tree = newTree }
+            self.stack = newStack
         }
-        withAnimation(Self.animation(for: change)) {
-            tree = editor.tree
-            stack = editor.stack
+        if animates, change != .none {
+            withAnimation(Self.animation(for: change), set)
+        } else {
+            set()
         }
+        terminals?.endSessions(notIn: newTree)
     }
 
     // MARK: How the stack changed
@@ -264,14 +280,7 @@ final class SheetsModel {
         mutate(&new)
         let change = SheetStackChange(from: stack, to: new, in: tree)
         guard change != .none else { return }
-        defer { syncTerminals() }
-        settingsMemory.note(new)
-        recorded = (change, new)
-        guard animates else {
-            stack = new
-            return
-        }
-        withAnimation(Self.animation(for: change)) { stack = new }
+        publish(tree, new, change: change)
     }
 
     /// A short slide, a quicker swap, or a fade with Reduce Motion on. The sheets pick their

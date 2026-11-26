@@ -31,5 +31,7 @@ let package = Package(
         ),
         .testTarget(name: "SheetsCoreTests", dependencies: ["SheetsCore"]),
         .testTarget(name: "SheetsSwiftTermEngineTests", dependencies: ["SheetsSwiftTermEngine"]),
+        // The app's own model and views, drawn in a window that is never put on screen.
+        .testTarget(name: "SheetsAppTests", dependencies: ["sheets"]),
     ]
 )

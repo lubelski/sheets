@@ -1,8 +1,9 @@
 import SheetsCore
 import SwiftUI
 
-/// A group's sheet: its children, each a row that opens the child over it. A right click on a
-/// row edits that pane, and a right click elsewhere adds a pane to the group.
+/// A group's sheet, under the title bar the stack draws: its children, each a row that opens
+/// the child over it. A right click on a row edits that pane, and a right click elsewhere adds a
+/// pane to the group.
 struct GroupSheet: View {
     let model: SheetsModel
     let pane: Pane
@@ -11,7 +12,6 @@ struct GroupSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetTitleBar(title: pane.title)
             if pane.children.isEmpty {
                 Text("Nothing in this group yet")
                     .font(.callout)
@@ -40,17 +40,14 @@ struct PlaceholderSheet: View {
     let pane: Pane
 
     var body: some View {
-        VStack(spacing: 0) {
-            SheetTitleBar(title: pane.title)
-            VStack(spacing: 6) {
-                Text("No page view yet")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Text("The page will load here.")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 6) {
+            Text("No page view yet")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("The page will load here.")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

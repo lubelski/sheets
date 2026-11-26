@@ -32,8 +32,9 @@ stack of sheets, and split layout are in place with tests.
 - Click a row in the sidebar to open the path to that pane, each sheet over its parent.
 - Click a row in a group's sheet to open that pane over it.
 - Pick another row from the same list while one is open, and its sheet stays where it is. Only
-  what is on it changes, with a short fade that moves up for a row lower in the list and down
-  for one higher. Sheets that were open above it close.
+  what is on it changes. The title bar stays still and its title fades in place, and what is
+  under the bar fades while moving up for a row lower in the list and down for one higher.
+  Sheets that were open above it close.
 - Press Escape, or Command-[, to close the top sheet. While a terminal on top runs its shell,
   Escape goes to the terminal instead.
 - Click the strip of a covered sheet to go back to it, or click a row in the strip to open that
@@ -133,6 +134,7 @@ The app starts with one terminal, named `~` for the home folder.
 | `Sources/sheets` | The app |
 | `Tests/SheetsCoreTests` | Tests for `SheetsCore`, with a fake terminal engine |
 | `Tests/SheetsSwiftTermEngineTests` | Tests that run real programs in SwiftTerm, with no window |
+| `Tests/SheetsAppTests` | Tests of the app's model and views, drawn in a window never put on screen |
 | `docs/config.md` | Every config key with its default, made from the key table |
 | `Resources/AppIcon.icon` | The app icon, an Icon Composer file drawn by `scripts/render-icon.sh` |
 | `scripts/bundle.sh` | Builds and signs `build/sheets.app` |
@@ -165,7 +167,8 @@ sample panes, and writes a PNG of each key state in light and dark to `build/ren
 focus, and uses a throwaway preferences suite. It never reads your config file. The renders
 of Settings, Terminal that show a config file read a sample the script writes and points
 `SHEETS_CONFIG_PATH` at. It starts no shell: a terminal's sheet draws a few stand-in lines
-where the live terminal would be.
+where the live terminal would be. Only a render draws them. In the app, a terminal whose
+shell could not be started says so, with a Start button.
 
 ```sh
 scripts/render-previews.sh
