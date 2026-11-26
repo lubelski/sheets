@@ -1,6 +1,15 @@
 {
-  "originHash" : "936745948d6683bc98aaae238e5b3e34aec7e0848da9f978524841db830db6bd",
+  "originHash" : "d43261d7f6edfc85ab81f62634006ebfe07d4fe90099c63e60571d38a2c54b7e",
   "pins" : [
+    {
+      "identity" : "h",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/rarestype/h",
+      "state" : {
+        "revision" : "aa3626829160917d4378330617971977cbd78f5b",
+        "version" : "1.0.1"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
@@ -8,6 +17,33 @@
       "state" : {
         "revision" : "ab7d71291238df6e0492143b120c9b696a35f603",
         "version" : "2.10.1"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    },
+    {
+      "identity" : "swift-png",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tayloraswift/swift-png",
+      "state" : {
+        "revision" : "2d17c6c51c098628574c0383f1119892655a73a2",
+        "version" : "4.5.2"
+      }
+    },
+    {
+      "identity" : "swiftterm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/SwiftTerm",
+      "state" : {
+        "revision" : "b30669619244453a66b14a6b10ec859e3016d6fd",
+        "version" : "1.99.4"
       }
     }
   ],

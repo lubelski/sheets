@@ -42,13 +42,20 @@ public struct Pane: Identifiable, Hashable, Sendable, Codable {
     /// A folder on disk, as a path. A terminal starts in its folder. A group's folder is where
     /// new terminals under it start. Nil when the pane has none, and always nil for a page.
     public var folder: String?
+    /// The engine a terminal runs in. Nil for the standard engine, and always nil for other
+    /// kinds. See `TerminalEngineRegistry`.
+    public var engine: TerminalEngineID?
 
-    public init(id: PaneID, kind: PaneKind, title: String, children: [Pane] = [], folder: String? = nil) {
+    public init(
+        id: PaneID, kind: PaneKind, title: String, children: [Pane] = [], folder: String? = nil,
+        engine: TerminalEngineID? = nil
+    ) {
         self.id = id
         self.kind = kind
         self.title = title
         self.children = children
         self.folder = folder
+        self.engine = engine
     }
 
     /// True for Settings and its sections. They are part of the app, not the person's own
