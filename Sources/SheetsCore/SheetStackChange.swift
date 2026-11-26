@@ -83,9 +83,11 @@ public enum SheetSwapDirection: Hashable, Sendable {
 public enum SheetMotion {
     /// How long a sheet takes to slide in from the trailing edge or back out, in seconds.
     public static let slideDuration: Double = 0.24
-    /// How long a swap takes, in seconds. It is quicker than a slide, since it moves less.
+    /// How long a swap takes, in seconds. It is quicker than a slide, since it moves less. The
+    /// title fades in place over the same time while the content under the title bar moves.
     public static let swapDuration: Double = 0.18
-    /// How far a swap's content moves up or down while it crossfades, in points.
+    /// How far a swap's content moves up or down while it crossfades, in points. The title bar
+    /// does not move.
     public static let swapDistance: CGFloat = 10
     /// How long any change takes with Reduce Motion on, where sheets and swaps only fade.
     public static let reduceMotionFadeDuration: Double = 0.2

@@ -10,8 +10,9 @@ import SwiftUI
 //
 // Opening a sheet slides it in from the trailing edge, and going back slides it out. Picking
 // a sibling of an open pane, another row from the same list, is a swap: the sheet stays, and
-// only what is on it changes, with a short crossfade that moves up or down. Which change is
-// which comes from `SheetStackChange`, and every duration and distance from `SheetMotion`.
+// only what is on it changes. Its title bar stays too, and the title fades in place, while the
+// content under the bar crossfades with a short move up or down. Which change is which comes
+// from `SheetStackChange`, and every duration and distance from `SheetMotion`.
 //
 // A sheet, a dimming, or a sheet's content that is leaving stops taking clicks as soon as it
 // starts to leave. SwiftUI keeps a leaving view in place, on top, until its animation ends,
@@ -112,13 +113,22 @@ struct SheetStackView<Sheet: View>: View {
             sheet(level)
                 .overlay { CoveredDimming(isCovered: level.isCovered).allowsHitTesting(false) }
         } else {
-            // The content is known by its pane, so a swap replaces it inside the sheet, which
-            // stays.
-            ZStack(alignment: .topLeading) {
-                sheet(level)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .id(level.pane?.id)
-                    .transition(swapTransition(depth: level.depth))
+            // The title bar belongs to the sheet, not to its content, so a swap leaves it where
+            // it is and only its words fade. The content under it is known by its pane, so a
+            // swap replaces it inside the sheet, which stays.
+            VStack(spacing: 0) {
+                if let pane = level.pane {
+                    PaneTitleBar(model: model, pane: pane)
+                }
+                ZStack(alignment: .topLeading) {
+                    sheet(level)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .id(level.pane?.id)
+                        .transition(swapTransition(depth: level.depth))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // Content moving up as it leaves goes under the bar's edge, not over the bar.
+                .clipped()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .modifier(CoveredSheet(
@@ -132,34 +142,67 @@ struct SheetStackView<Sheet: View>: View {
 
 // MARK: - Parts a sheet is built from
 
+/// The title bar of a pane's sheet, with what it says worked out from the pane. A terminal's
+/// shell can set a title while the sheet shows, so it is read here, where only the bar redraws
+/// for it. A right click on a group's bar adds a pane to the group, as a right click on the
+/// rest of its sheet does.
+struct PaneTitleBar: View {
+    let model: SheetsModel
+    let pane: Pane
+
+    var body: some View {
+        let shellTitle = pane.kind == .terminal ? model.terminals?.record(for: pane.id)?.title : nil
+        let bar = SheetTitleBar(title: SheetTitle(pane: pane, shellTitle: shellTitle), paneID: pane.id)
+        if pane.kind == .group {
+            bar.contextMenu { NewPaneMenuItems(model: model, near: pane.id) }
+        } else {
+            bar
+        }
+    }
+}
+
 /// A sheet's title bar: the pane's name, centered, over a faint line. A detail, such as the
 /// title a terminal's shell set, follows the name in a lighter weight and color.
+///
+/// The bar is one height for every pane, `SheetTitle.barHeight`, and it never moves while a
+/// swap changes the sheet's content. Its words are known by their pane, so when a swap puts
+/// another pane on the sheet, the old words fade out and the new ones fade in, in place, with
+/// the swap's own animation. A new title from the same pane, such as one a shell set, simply
+/// replaces the old.
 struct SheetTitleBar: View {
-    let title: String
-    var detail: String?
+    let title: SheetTitle
+    let paneID: PaneID
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .layoutPriority(1)
-                if let detail, detail != title {
-                    Text(detail)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
+            ZStack {
+                words
+                    .id(paneID)
+                    .transition(.opacity)
             }
-            .lineLimit(1)
-            .truncationMode(.middle)
             .frame(maxWidth: .infinity)
-            .frame(height: 32)
+            .frame(height: SheetTitle.barHeight)
             .padding(.horizontal, 16)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Divider().opacity(0.6)
         }
+    }
+
+    private var words: some View {
+        HStack(spacing: 6) {
+            Text(title.title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .layoutPriority(1)
+            if let detail = title.detail {
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .lineLimit(1)
+        .truncationMode(.middle)
     }
 }
 
@@ -356,9 +399,9 @@ private struct SheetLeaving: ViewModifier {
     }
 }
 
-/// A sheet's content swapping for a sibling's: a crossfade with a short move up or down, by
-/// the two panes' order in their list. Only a fade with Reduce Motion on, or when the order is
-/// not known. The content leaving stops taking clicks at once.
+/// A sheet's content, under its title bar, swapping for a sibling's: a crossfade with a short
+/// move up or down, by the two panes' order in their list. Only a fade with Reduce Motion on,
+/// or when the order is not known. The content leaving stops taking clicks at once.
 private struct SheetSwapping: ViewModifier {
     enum Phase { case identity, entering, leaving }
 

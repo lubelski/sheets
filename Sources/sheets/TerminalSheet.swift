@@ -2,7 +2,8 @@ import AppKit
 import SheetsCore
 import SwiftUI
 
-/// A terminal's sheet: its title bar, then the terminal, dark in light and dark mode alike.
+/// A terminal's sheet, under the title bar the stack draws: the terminal, dark in light and
+/// dark mode alike. The title bar shows any title the shell set.
 ///
 /// The terminal itself belongs to the pane's session, not to this sheet, so the sheet only
 /// borrows its view. When the shell exits by itself, a quiet line at the foot of the terminal
@@ -15,27 +16,24 @@ struct TerminalSheet: View {
 
     var body: some View {
         let record = model.terminals?.record(for: pane.id)
-        VStack(spacing: 0) {
-            SheetTitleBar(title: pane.title, detail: record?.title)
-            ZStack(alignment: .bottom) {
-                Color(TerminalAppearance.standard.background)
-                Group {
-                    if let host = record?.session as? TerminalViewHosting {
-                        TerminalHostView(host: host, wantsFocus: isTop && model.renaming == nil)
-                    } else {
-                        TerminalStandIn(appearance: .standard)
-                    }
-                }
-                // Room between the text and the sheet's edges.
-                .padding(.leading, 10)
-                .padding(.trailing, 4)
-                .padding(.vertical, 6)
-                if let record, !record.status.isRunning {
-                    TerminalEndedLine(status: record.status, isTop: isTop) { model.restartTerminal(pane.id) }
+        ZStack(alignment: .bottom) {
+            Color(TerminalAppearance.standard.background)
+            Group {
+                if let host = record?.session as? TerminalViewHosting {
+                    TerminalHostView(host: host, wantsFocus: isTop && model.renaming == nil)
+                } else {
+                    TerminalStandIn(appearance: .standard)
                 }
             }
-            .environment(\.colorScheme, .dark)
+            // Room between the text and the sheet's edges.
+            .padding(.leading, 10)
+            .padding(.trailing, 4)
+            .padding(.vertical, 6)
+            if let record, !record.status.isRunning {
+                TerminalEndedLine(status: record.status, isTop: isTop) { model.restartTerminal(pane.id) }
+            }
         }
+        .environment(\.colorScheme, .dark)
     }
 }
 
