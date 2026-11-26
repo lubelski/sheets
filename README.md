@@ -30,8 +30,9 @@ stack of sheets, and split layout are in place with tests.
 - Click a row in the sidebar to open the path to that pane, each sheet over its parent.
 - Click a row in a group's sheet to open that pane over it.
 - Pick another row from the same list while one is open, and its sheet stays where it is. Only
-  what is on it changes, with a short fade that moves up for a row lower in the list and down
-  for one higher. Sheets that were open above it close.
+  what is on it changes. The title bar stays still and its title fades in place, and what is
+  under the bar fades while moving up for a row lower in the list and down for one higher.
+  Sheets that were open above it close.
 - Press Escape, or Command-[, to close the top sheet. While a terminal on top runs its shell,
   Escape goes to the terminal instead.
 - Click the strip of a covered sheet to go back to it, or click a row in the strip to open that

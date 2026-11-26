@@ -4,42 +4,36 @@ import SwiftUI
 // Settings is a pane, not a window. Its sheet opens over the sidebar and lists the sections,
 // and each section opens as a sheet over it.
 
-/// The Settings sheet: a row per section.
+/// The Settings sheet, under the title bar the stack draws: a row per section.
 struct SettingsSheet: View {
     let openedID: PaneID?
     let open: (PaneID) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            SheetTitleBar(title: SettingsSection.pane.title)
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(SettingsSection.allCases) { section in
-                        SheetRow(
-                            id: section.paneID, title: section.title, summary: section.summary,
-                            isOpen: section.paneID == openedID, open: { open(section.paneID) })
-                    }
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(SettingsSection.allCases) { section in
+                    SheetRow(
+                        id: section.paneID, title: section.title, summary: section.summary,
+                        isOpen: section.paneID == openedID, open: { open(section.paneID) })
                 }
-                .padding(.vertical, 6)
             }
+            .padding(.vertical, 6)
         }
     }
 }
 
-/// One section's sheet, under a title bar with its name.
+/// One section's sheet, under the title bar the stack draws, which shows the section's name.
 struct SettingsSectionSheet: View {
     let section: SettingsSection
     let updater: AppUpdater
     let buildInfo: BuildInfo
 
     var body: some View {
-        VStack(spacing: 0) {
-            SheetTitleBar(title: section.title)
-            switch section {
-            case .general: GeneralSettings(updater: updater, buildInfo: buildInfo)
-            case .experiments: ExperimentsSettings()
-            case .debugging: DebuggingSettings(buildInfo: buildInfo)
-            }
+        switch section {
+        case .general: GeneralSettings(updater: updater, buildInfo: buildInfo)
+        case .experiments: ExperimentsSettings()
+        case .debugging: DebuggingSettings(buildInfo: buildInfo)
         }
     }
 }
