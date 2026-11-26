@@ -14,6 +14,9 @@ final class SheetsModel {
     @ObservationIgnored private let settingsMemory: SettingsSectionMemory
     /// Whether changes animate. Off for renders, which draw one state each.
     @ObservationIgnored private let animates: Bool
+    /// The last change made here, and the stack it led to. Not observed: it is set with the
+    /// stack, and the sheets' transitions read it while they come and go.
+    @ObservationIgnored private var recorded = (change: SheetStackChange.none, stack: SheetStack())
 
     /// `defaults` is where Settings keeps its open section. `tree` gets Settings added if it
     /// does not have it.
@@ -56,23 +59,35 @@ final class SheetsModel {
         change { $0 = memory.stack(openingSettingsFrom: $0) }
     }
 
+    /// What the change that led to the current stack was, so the sheets can pick their motion.
+    /// A stack this model did not change, such as the one it started with, reads as no change.
+    var change: SheetStackChange {
+        recorded.stack == stack ? recorded.change : .none
+    }
+
     private func change(_ mutate: (inout SheetStack) -> Void) {
         var new = stack
         mutate(&new)
-        guard new != stack else { return }
+        let change = SheetStackChange(from: stack, to: new, in: tree)
+        guard change != .none else { return }
         settingsMemory.note(new)
+        recorded = (change, new)
         guard animates else {
             stack = new
             return
         }
-        withAnimation(Self.animation) { stack = new }
+        withAnimation(Self.animation(for: change)) { stack = new }
     }
 
-    /// A short slide, or a fade with Reduce Motion on. The sheets pick their transition to
-    /// match, from the same setting.
-    static var animation: Animation {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            ? .easeInOut(duration: 0.2)
-            : .easeOut(duration: 0.24)
+    /// A short slide, a quicker swap, or a fade with Reduce Motion on. The sheets pick their
+    /// transitions to match, from the same setting and the recorded change.
+    static func animation(for change: SheetStackChange) -> Animation {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            .easeInOut(duration: SheetMotion.reduceMotionFadeDuration)
+        } else if change.swapDepth != nil {
+            .easeOut(duration: SheetMotion.swapDuration)
+        } else {
+            .easeOut(duration: SheetMotion.slideDuration)
+        }
     }
 }
