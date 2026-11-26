@@ -50,6 +50,23 @@ import Testing
         #expect(fake(store, ID.scratch)?.appearances == [.standard])
     }
 
+    @Test func startingTheShownSessionsEndsNone() {
+        let store = store()
+        var editor = PaneEditor(tree: tree, stack: SheetStack([ID.acmeWeb, ID.devServer]))
+        store.sync(tree: editor.tree, stack: editor.stack)
+        editor.close(ID.devServer)
+        let added = editor.add(.terminal, near: ID.scratch, homeFolder: "/home/someone")
+
+        // Before the new stack is on screen: the new terminal starts, the closed one stays.
+        store.startSessions(shownIn: editor.stack, in: editor.tree)
+        #expect(Set(store.records.keys) == [ID.devServer, added!])
+        #expect(fake(store, ID.devServer)?.endCount == 0)
+
+        // After: the closed one ends.
+        store.endSessions(notIn: editor.tree)
+        #expect(Set(store.records.keys) == [added!])
+    }
+
     // MARK: Keeping
 
     @Test func goingToASiblingAndBackKeepsTheSameSession() {

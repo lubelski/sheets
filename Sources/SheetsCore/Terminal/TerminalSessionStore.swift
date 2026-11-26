@@ -48,6 +48,9 @@ public final class TerminalSessionRecord {
 ///   output stays readable. `restart` starts a new one.
 ///
 /// `sync(tree:stack:)` applies the first three rules after any change to the tree or the stack.
+/// A caller that draws the sheets can split it: `startSessions(shownIn:in:)` before the new
+/// stack is on screen, so no terminal's sheet is ever drawn without its session, and
+/// `endSessions(notIn:)` after.
 @MainActor
 @Observable
 public final class TerminalSessionStore {
@@ -86,6 +89,11 @@ public final class TerminalSessionStore {
     /// that has none.
     public func sync(tree: PaneTree, stack: SheetStack) {
         endSessions(notIn: tree)
+        startSessions(shownIn: stack, in: tree)
+    }
+
+    /// Starts a session for each terminal shown in the stack, covered or on top, that has none.
+    public func startSessions(shownIn stack: SheetStack, in tree: PaneTree) {
         for id in stack.entries {
             if let pane = tree.pane(id), pane.kind == .terminal { start(pane) }
         }
