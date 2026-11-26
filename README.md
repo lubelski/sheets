@@ -27,6 +27,7 @@ pane tree, the stack of sheets, and split layout are in place with tests.
 | `Sources/sheets` | The app |
 | `Tests/SheetsCoreTests` | Tests for `SheetsCore` |
 | `scripts/bundle.sh` | Builds and signs `build/sheets.app` |
+| `scripts/release.sh` | Builds, notarizes, and publishes a release |
 
 ## Building
 
@@ -44,6 +45,24 @@ scripts/bundle.sh
 ```sh
 open build/sheets.app
 ```
+
+## Updates and releases
+
+The app updates itself with [Sparkle](https://sparkle-project.org). It reads `appcast.xml`
+from the latest GitHub Release of this repo, and installs updates signed with the key in
+`scripts/sparkle-public-key.txt`.
+
+Only a release build has a feed. A plain `scripts/bundle.sh` build never updates itself and
+shows no Check for Updates item, so a development copy is never replaced by a release.
+
+```sh
+scripts/release.sh --check          # says whether this Mac can release now, changes nothing
+scripts/release.sh 1.2.0 --dry-run  # builds the zip and the feed into build/release, publishes nothing
+scripts/release.sh 1.2.0            # builds, signs, notarizes, tags v1.2.0, and publishes the release
+```
+
+A release is built from `main` with a clean tree. The setup it needs is described at the top
+of `scripts/release.sh`.
 
 ## License
 

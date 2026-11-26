@@ -6,9 +6,12 @@
 #                            check a build while a copy from build runs.
 #   SHEETS_VERSION           The version to show, such as 1.2.0. Defaults to the latest v* tag,
 #                            or 0.1 without one.
+#   SHEETS_FEED_URL          The Sparkle feed. Set by scripts/release.sh, together with
+#   SHEETS_PUBLIC_KEY        the public key that updates are signed with. A build without
+#                            these two never updates itself.
 #   SHEETS_SIGNING_IDENTITY  The signing identity. See "Sign" below for the default.
 #
-# Not here yet: Sparkle, the app icon, and entitlements. The app is not sandboxed, since a
+# Not here yet: the app icon and entitlements. The app is not sandboxed, since a
 # terminal has to start shells and other programs as the person who runs it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -26,8 +29,13 @@ BUNDLE_DIR="${SHEETS_BUNDLE_DIR:-build}"
 mkdir -p "$BUNDLE_DIR"
 APP="$BUNDLE_DIR/sheets.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN" "$APP/Contents/MacOS/sheets"
+
+# Sparkle, the updater. SwiftPM builds it next to the binary but does not know about app
+# bundles, so copy it in and tell the binary where to find it.
+ditto "$(dirname "$BIN")/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/sheets"
 
 # SwiftPM writes the deployment target into the binary's SDK field. macOS reads that field
 # to decide whether to run the app in a compatibility mode for older apps, so stamp the
@@ -51,6 +59,16 @@ VERSION="${SHEETS_VERSION:-${LATEST_TAG#v}}"
 VERSION="${VERSION:-0.1}"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 
+# The updater keys go in only when both are set, which scripts/release.sh does. A plain build
+# has no feed, so a development copy is never replaced by a release.
+UPDATER_KEYS=""
+if [[ -n "${SHEETS_FEED_URL:-}" && -n "${SHEETS_PUBLIC_KEY:-}" ]]; then
+  UPDATER_KEYS="<key>SUFeedURL</key><string>$SHEETS_FEED_URL</string>
+  <key>SUPublicEDKey</key><string>$SHEETS_PUBLIC_KEY</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUAutomaticallyUpdate</key><true/>"
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -67,6 +85,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>$MIN_OS</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
+  $UPDATER_KEYS
 </dict>
 </plist>
 PLIST
@@ -92,6 +111,15 @@ if [[ "$IDENTITY" == *"Developer ID Application"* ]]; then
   # Notarization needs the hardened runtime and a secure timestamp.
   SIGN+=(--options runtime --timestamp)
 fi
+# Sparkle's helpers are signed one at a time, innermost first, as its documentation says.
+# Never with --deep.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+"${SIGN[@]}" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+"${SIGN[@]}" --preserve-metadata=entitlements "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Autoupdate"
+"${SIGN[@]}" "$SPARKLE/Versions/B/Updater.app"
+"${SIGN[@]}" "$SPARKLE"
+# The app has no entitlements file, so it is signed without one.
 "${SIGN[@]}" "$APP"
 codesign --verify --deep --strict "$APP"
 if [[ "$IDENTITY" == "-" ]]; then
