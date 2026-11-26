@@ -36,6 +36,24 @@ final class AppUpdater {
     /// False while a check is already running, and always false without a feed.
     var canCheck: Bool { controller?.updater.canCheckForUpdates ?? false }
 
+    /// Whether Sparkle looks for, downloads, and installs updates without asking. Always false
+    /// without a feed.
+    var updatesAutomatically: Bool {
+        get {
+            guard let updater = controller?.updater else { return false }
+            return updater.automaticallyChecksForUpdates && updater.automaticallyDownloadsUpdates
+        }
+        set {
+            controller?.updater.automaticallyChecksForUpdates = newValue
+            controller?.updater.automaticallyDownloadsUpdates = newValue
+        }
+    }
+
+    /// A build with no feed, for renders.
+    static func unavailable() -> AppUpdater {
+        AppUpdater(info: nil)
+    }
+
     /// Checks now and shows Sparkle's own windows with the result.
     func checkForUpdates() {
         controller?.checkForUpdates(nil)

@@ -96,6 +96,8 @@ public struct PaneTree: Hashable, Sendable, Codable {
         public let id: PaneID
         public let kind: PaneKind
         public let title: String
+        /// The short line under the title. See `Pane.summary`.
+        public let summary: String
         /// How far the row is indented: 0 for a top-level pane, 1 for its children, and so on.
         public let depth: Int
         /// True when the pane has children, so the row can show a fold control.
@@ -107,19 +109,32 @@ public struct PaneTree: Hashable, Sendable, Codable {
     /// The sidebar's rows, top to bottom: each pane, then its children, depth first. The
     /// children of a folded pane are left out, and so is everything under them. Folding a pane
     /// without children changes nothing.
+    ///
+    /// Settings is left out, with its sections. The sidebar pins it at the bottom instead. See
+    /// `pinnedRows`.
     public func sidebarRows(folded: Set<PaneID> = []) -> [Row] {
         var rows: [Row] = []
         func visit(_ panes: [Pane], depth: Int) {
-            for pane in panes {
+            for pane in panes where pane.kind != .settings {
                 let isFolded = !pane.children.isEmpty && folded.contains(pane.id)
-                rows.append(Row(
-                    id: pane.id, kind: pane.kind, title: pane.title, depth: depth,
-                    hasChildren: !pane.children.isEmpty, isFolded: isFolded))
+                rows.append(Self.row(pane, depth: depth, isFolded: isFolded))
                 if !isFolded { visit(pane.children, depth: depth + 1) }
             }
         }
         visit(roots, depth: 0)
         return rows
+    }
+
+    /// The rows pinned at the bottom of the sidebar, apart from the tree above them: the
+    /// top-level Settings pane, without its sections, which open from its own sheet.
+    public func pinnedRows() -> [Row] {
+        roots.filter { $0.kind == .settings }.map { Self.row($0, depth: 0, isFolded: true) }
+    }
+
+    private static func row(_ pane: Pane, depth: Int, isFolded: Bool) -> Row {
+        Row(
+            id: pane.id, kind: pane.kind, title: pane.title, summary: pane.summary, depth: depth,
+            hasChildren: !pane.children.isEmpty, isFolded: isFolded)
     }
 
     // MARK: Helpers
