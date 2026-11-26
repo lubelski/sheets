@@ -43,7 +43,8 @@ stack of sheets, and split layout are in place with tests.
 ## Terminals
 
 - A terminal runs your login shell, from your user record or else `/bin/zsh`, as a login
-  shell, in the pane's folder, or your home folder if it has none or it is gone. The shell
+  shell, in the pane's folder, or your home folder if it has none or it is gone. The config
+  file can name another shell, its arguments, and another starting folder. The shell
   sees `TERM=xterm-256color`, `COLORTERM=truecolor`, and `TERM_PROGRAM=sheets`, and `LANG`
   when it was not set.
 - A terminal's shell starts the first time its sheet shows and keeps running while the pane
@@ -57,9 +58,39 @@ stack of sheets, and split layout are in place with tests.
   its own name.
 - When a shell exits by itself, its output stays, with a line at the foot saying so and
   **Start Again** (Return).
-- Copy, paste, and select all are in the Edit menu, as usual. Option types characters
-  such as é rather than acting as Meta.
+- Copy, paste, and select all are in the Edit menu, as usual. By default Option types
+  characters such as é rather than acting as Meta. `terminal.option-as-meta` changes that.
 - A clicked link opens in the default browser for now.
+
+### Settings and the config file
+
+Settings live in a plain text file, `~/.config/sheets/config` (or
+`$XDG_CONFIG_HOME/sheets/config`), one `key = value` per line, each line valid TOML. The file
+holds only what differs from the defaults, so it may not exist at all.
+[docs/config.md](docs/config.md) lists every key with its default.
+
+```toml
+terminal.font-family = "Menlo"
+terminal.font-size = 13
+terminal.cursor-style = "bar"   # block, underline, or bar
+terminal.option-as-meta = "left"
+```
+
+- **Settings, Terminal** shows the same settings: font, colors, cursor, keyboard and mouse,
+  and shell. A change there rewrites only that key's line and keeps the rest of the file as
+  it is. Each changed setting has a button that puts it back to its default.
+- The app watches the file. An edit from an editor or another tool applies while the app
+  runs. Look and keyboard settings reach running terminals. The shell, its arguments, the
+  starting folder, and scrollback reach terminals started after the change.
+- A line the app cannot use is listed in Settings, Terminal, with its line number, and its key
+  keeps its last good value. An unknown key is a warning. The app always starts.
+- Experiments' switches are keys too, `experiments.<name>`.
+- The key table is `Sources/SheetsCore/Config/ConfigKeys.swift`. The parser, the checks,
+  Settings, and `docs/config.md` all come from it. After changing a key, regenerate the doc:
+
+```sh
+SHEETS_WRITE_CONFIG_REFERENCE=1 swift test --filter ConfigReferenceTests
+```
 
 ### Terminal engines
 
@@ -91,19 +122,20 @@ The app starts with one terminal, named `~` for the home folder.
 - Settings and its sections stay as they are: they cannot be closed, renamed, or moved, and
   nothing goes under them.
 - Dragging sidebar rows to move panes is an experiment, off by default. Turn it on in
-  Settings, Experiments. Drop near the top or bottom of a row to put the pane above or below
+  Settings, Experiments, or with `experiments.drag-to-move = true` in the config file. Drop near the top or bottom of a row to put the pane above or below
   it, or on the middle to put it inside.
 
 ## Layout
 
 | Path | What it holds |
 |---|---|
-| `Sources/SheetsCore` | The logic, with no UI: the pane tree, the sheet stack, dwindle layout, the terminal engine seam and session store |
+| `Sources/SheetsCore` | The logic, with no UI: the pane tree, the sheet stack, dwindle layout, the terminal engine seam and session store, the config file |
 | `Sources/SheetsSwiftTermEngine` | The SwiftTerm terminal engine |
 | `Sources/sheets` | The app |
 | `Tests/SheetsCoreTests` | Tests for `SheetsCore`, with a fake terminal engine |
 | `Tests/SheetsSwiftTermEngineTests` | Tests that run real programs in SwiftTerm, with no window |
 | `Tests/SheetsAppTests` | Tests of the app's model and views, drawn in a window never put on screen |
+| `docs/config.md` | Every config key with its default, made from the key table |
 | `Resources/AppIcon.icon` | The app icon, an Icon Composer file drawn by `scripts/render-icon.sh` |
 | `scripts/bundle.sh` | Builds and signs `build/sheets.app` |
 | `scripts/render-previews.sh` | Draws the window's key states to PNG files, with no window on screen |
@@ -132,9 +164,11 @@ open build/sheets.app
 `scripts/render-previews.sh` draws the main window offscreen, title bar included, mostly with
 sample panes, and writes a PNG of each key state in light and dark to `build/renders/`. It runs the app with
 `--render-previews <folder>`, which puts no window on screen, shows no Dock icon, takes no
-focus, and uses a throwaway preferences suite. It starts no shell: a terminal's sheet draws a
-few stand-in lines where the live terminal would be. Only a render draws them. In the app, a
-terminal whose shell could not be started says so, with a Start button.
+focus, and uses a throwaway preferences suite. It never reads your config file. The renders
+of Settings, Terminal that show a config file read a sample the script writes and points
+`SHEETS_CONFIG_PATH` at. It starts no shell: a terminal's sheet draws a few stand-in lines
+where the live terminal would be. Only a render draws them. In the app, a terminal whose
+shell could not be started says so, with a Start button.
 
 ```sh
 scripts/render-previews.sh

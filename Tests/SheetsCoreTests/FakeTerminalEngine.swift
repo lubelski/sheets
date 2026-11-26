@@ -12,8 +12,8 @@ final class FakeTerminalEngine: TerminalEngine {
         self.id = id
     }
 
-    func makeSession() -> any TerminalSession {
-        let session = FakeTerminalSession(engine: id)
+    func makeSession(appearance: TerminalAppearance, behavior: TerminalBehavior) -> any TerminalSession {
+        let session = FakeTerminalSession(engine: id, startingBehavior: behavior)
         made.append(session)
         return session
     }
@@ -27,11 +27,15 @@ final class FakeTerminalSession: TerminalSession {
     private(set) var sizes: [(columns: Int, rows: Int)] = []
     private(set) var sent: [String] = []
     private(set) var appearances: [TerminalAppearance] = []
+    private(set) var behaviors: [TerminalBehavior] = []
+    /// The behavior the engine made the session with, which is where scrollback comes from.
+    let startingBehavior: TerminalBehavior
     private(set) var opened: [TerminalLink] = []
     private(set) var endCount = 0
 
-    init(engine: TerminalEngineID) {
+    init(engine: TerminalEngineID, startingBehavior: TerminalBehavior = .standard) {
         self.engine = engine
+        self.startingBehavior = startingBehavior
     }
 
     var isRunning: Bool { !launches.isEmpty && endCount == 0 }
@@ -40,6 +44,7 @@ final class FakeTerminalSession: TerminalSession {
     func resize(columns: Int, rows: Int) { sizes.append((columns, rows)) }
     func send(_ text: String) { sent.append(text) }
     func apply(_ appearance: TerminalAppearance) { appearances.append(appearance) }
+    func apply(_ behavior: TerminalBehavior) { behaviors.append(behavior) }
     func openWithDefaultHandler(_ link: TerminalLink) { opened.append(link) }
     func end() { endCount += 1 }
 

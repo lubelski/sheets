@@ -124,6 +124,24 @@ import Testing
         #expect(editor.tree.pane("inner-terminal")?.title == "docs")
     }
 
+    @Test func theStartingFolderReplacesOnlyTheHomeFolderFallback() {
+        var tree = tree
+        tree.update(ID.acmeWeb) { $0.folder = "/work/acme-web" }
+        var editor = PaneEditor(tree: tree)
+        let start = "/home/someone/Projects"
+        // A group's folder still wins.
+        editor.add(.terminal, at: PanePlace(parent: ID.devServer, index: 0), homeFolder: home, startingFolder: start, id: "deep")
+        #expect(editor.tree.pane("deep")?.folder == "/work/acme-web")
+        // With no group folder above it, the starting folder, named relative to home.
+        editor.add(.terminal, near: ID.acmeAPI, homeFolder: home, startingFolder: start, id: "api")
+        #expect(editor.tree.pane("api")?.folder == start)
+        #expect(editor.tree.pane("api")?.title == "Projects")
+        // The first launch's terminal starts there too, and home is still called ~.
+        let first = PaneEditor.firstLaunch(homeFolder: home, startingFolder: start, id: "first")
+        #expect(first.tree.pane("first")?.folder == start)
+        #expect(PaneEditor.firstLaunch(homeFolder: home, startingFolder: home, id: "f").tree.pane("f")?.title == "~")
+    }
+
     @Test func aTerminalIsNamedForItsFolder() {
         #expect(PaneTree.title(forFolder: home, home: home) == "~")
         #expect(PaneTree.title(forFolder: home + "/", home: home) == "~")

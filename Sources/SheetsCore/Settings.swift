@@ -10,6 +10,7 @@ import Foundation
 /// always last.
 public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     case general
+    case terminal
     case experiments
     case debugging
 
@@ -30,6 +31,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     public var title: String {
         switch self {
         case .general: "General"
+        case .terminal: "Terminal"
         case .experiments: "Experiments"
         case .debugging: "Debugging"
         }
@@ -39,6 +41,7 @@ public enum SettingsSection: String, CaseIterable, Sendable, Identifiable {
     public var summary: String {
         switch self {
         case .general: "Updates and version"
+        case .terminal: "Font, colors, cursor, keyboard, and shell"
         case .experiments: "Features being tried"
         case .debugging: "Build, commit, and signing"
         }
@@ -103,7 +106,7 @@ public struct SettingsSectionMemory {
 }
 
 /// Features being tried. Each is a switch in Settings, off by default, and with the switch
-/// off the app is as it was.
+/// off the app is as it was. Each is a key in the config file, `experiments.<name>`.
 public enum Experiment: CaseIterable, Sendable, Identifiable {
     /// Dragging a sidebar row onto another row to move its pane: above or below the row, or
     /// into it as its last child.
@@ -111,8 +114,19 @@ public enum Experiment: CaseIterable, Sendable, Identifiable {
 
     public var id: String { key }
 
-    /// The `UserDefaults` key for the switch.
-    public var key: String {
+    /// The experiment's key in the config file.
+    public var definition: ConfigKeyDefinition {
+        switch self {
+        case .dragToMove: ConfigKeys.dragToMove
+        }
+    }
+
+    /// The config file key for the switch, such as `experiments.drag-to-move`.
+    public var key: String { definition.key }
+
+    /// The `UserDefaults` key that held the switch before it moved to the config file. Read
+    /// once, to carry a switch that was on over to the file.
+    public var legacyDefaultsKey: String {
         switch self {
         case .dragToMove: "ExperimentDragToMove"
         }
@@ -133,7 +147,19 @@ public enum Experiment: CaseIterable, Sendable, Identifiable {
     }
 
     /// Whether the switch is on. Every experiment is off until it is turned on.
-    public func isOn(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: key)
+    public func isOn(in config: Config) -> Bool {
+        config.bool(definition)
+    }
+
+    /// Carries switches that were on in `UserDefaults` over to the config file, for any the
+    /// file does not set, and forgets them in `UserDefaults`.
+    @MainActor
+    public static func moveSwitchesFromDefaults(_ defaults: UserDefaults, to store: ConfigStore) {
+        for experiment in allCases where defaults.object(forKey: experiment.legacyDefaultsKey) != nil {
+            if defaults.bool(forKey: experiment.legacyDefaultsKey), !store.config.isSet(experiment.definition) {
+                guard (try? store.set(experiment.definition, to: .bool(true))) != nil else { continue }
+            }
+            defaults.removeObject(forKey: experiment.legacyDefaultsKey)
+        }
     }
 }

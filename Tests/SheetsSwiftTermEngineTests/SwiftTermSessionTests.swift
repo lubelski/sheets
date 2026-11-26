@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import SheetsCore
+import SwiftTerm
 import Testing
 @testable import SheetsSwiftTermEngine
 
@@ -31,7 +32,7 @@ import Testing
         let session = SwiftTermEngine().makeSession() as! SwiftTermSession
         var events: [TerminalEvent] = []
         session.events = { events.append($0) }
-        session.apply(.standard)
+        session.apply(TerminalAppearance.standard)
         session.start(launch("/bin/sh", ["-c", "printf 'ready'; exit 3"]))
         #expect(try await wait { events.contains(.exited(status: 3)) })
         session.end()
@@ -75,5 +76,36 @@ import Testing
             }
         })
         session.end()
+    }
+
+    @Test func settingsReachTheTerminalView() throws {
+        var appearance = TerminalAppearance.standard
+        appearance.lineSpacing = 1.2
+        appearance.cursorShape = .bar
+        appearance.cursorBlinks = false
+        let behavior = TerminalBehavior(
+            scrollbackLines: 100, optionAsMeta: .left, copyOnSelect: true, mouseReporting: false, bell: .visual)
+        let session = SwiftTermEngine().makeSession(appearance: appearance, behavior: behavior) as! SwiftTermSession
+        session.apply(appearance)
+        let view = try #require(session.terminalView as? TerminalView)
+        #expect(view.optionAsMetaKey)
+        #expect(view.optionAsMetaSide == .left)
+        #expect(view.copyOnSelect == .clipboard)
+        #expect(!view.allowMouseReporting)
+        #expect(view.bellStyle == .visual)
+        #expect(abs(view.lineSpacing - 1.2) < 0.0001)
+
+        session.apply(TerminalBehavior.standard)
+        #expect(!view.optionAsMetaKey)
+        #expect(view.copyOnSelect == .off)
+        #expect(view.allowMouseReporting)
+        #expect(view.bellStyle == .sound)
+        session.end()
+    }
+
+    @Test func aFontFamilyNameFindsItsRegularFace() {
+        #expect(SwiftTermSession.font(named: "Menlo", size: 12)?.familyName == "Menlo")
+        #expect(SwiftTermSession.font(named: "Menlo-Bold", size: 12)?.fontName == "Menlo-Bold")
+        #expect(SwiftTermSession.font(named: "No Such Font Family", size: 12) == nil)
     }
 }

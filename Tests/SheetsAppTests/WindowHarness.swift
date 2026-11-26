@@ -11,7 +11,7 @@ final class HostableFakeEngine: TerminalEngine {
     let name = "Hostable fake"
     private(set) var made: [HostableFakeSession] = []
 
-    func makeSession() -> any TerminalSession {
+    func makeSession(appearance: TerminalAppearance, behavior: TerminalBehavior) -> any TerminalSession {
         let session = HostableFakeSession()
         made.append(session)
         return session
@@ -31,6 +31,7 @@ final class HostableFakeSession: TerminalSession, TerminalViewHosting {
     func resize(columns: Int, rows: Int) {}
     func send(_ text: String) {}
     func apply(_ appearance: TerminalAppearance) {}
+    func apply(_ behavior: TerminalBehavior) {}
     func openWithDefaultHandler(_ link: TerminalLink) {}
     func end() { endCount += 1 }
 }
@@ -58,7 +59,7 @@ final class WindowHarness {
         let defaults = UserDefaults(suiteName: "sheets-tests-\(UUID().uuidString)")!
         model = SheetsModel(
             tree: tree, defaults: defaults, stack: stack, animates: animates, homeFolder: Self.home,
-            terminals: store)
+            terminals: store, config: Self.emptyConfig())
         let size = CGSize(width: 1000, height: 640)
         let view = NSHostingView(rootView: MainWindowView(model: model, updater: AppUpdater.unavailable())
             .frame(width: size.width, height: size.height)
@@ -71,6 +72,13 @@ final class WindowHarness {
         window.isReleasedWhenClosed = false
         window.contentView = view
         settle()
+    }
+
+    /// A config file that does not exist and is never written, so every setting is at its
+    /// default.
+    static func emptyConfig() -> ConfigStore {
+        let path = FileManager.default.temporaryDirectory.appending(path: "sheets-tests-\(UUID().uuidString)/config").path
+        return ConfigStore(path: path, watches: false)
     }
 
     /// The first time the app starts: one terminal in the home folder, open.

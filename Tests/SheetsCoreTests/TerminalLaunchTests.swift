@@ -141,3 +141,28 @@ import Testing
         #expect(folder("not a path") == nil)
     }
 }
+
+@Suite struct TerminalLaunchShellSettingTests {
+    let user = TerminalUser(shell: "/bin/zsh", home: "/home/someone", name: "someone")
+
+    func launch(shell: String?, arguments: [String] = [], executable: Set<String>) -> TerminalLaunch {
+        TerminalLaunch.loginShell(
+            in: nil, shell: shell, arguments: arguments, user: user, inheritedEnvironment: [:], language: "en",
+            region: "US", programVersion: nil, isFolder: { $0 == "/home/someone" },
+            isExecutable: { executable.contains($0) })
+    }
+
+    @Test func aChosenShellThatCanRunIsUsedWithItsArguments() {
+        let launch = launch(shell: "/opt/fish", arguments: ["-l", "--private"], executable: ["/opt/fish", "/bin/zsh"])
+        #expect(launch.executable == "/opt/fish")
+        #expect(launch.programName == "-fish")
+        #expect(launch.arguments == ["-l", "--private"])
+        #expect(launch.environment["SHELL"] == "/opt/fish")
+    }
+
+    @Test func aChosenShellThatCannotRunFallsBackToTheUsersShell() {
+        #expect(launch(shell: "/no/such/shell", executable: ["/bin/zsh"]).executable == "/bin/zsh")
+        #expect(launch(shell: "fish", executable: ["fish", "/bin/zsh"]).executable == "/bin/zsh")
+        #expect(launch(shell: nil, executable: ["/bin/zsh"]).executable == "/bin/zsh")
+    }
+}

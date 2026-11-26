@@ -33,7 +33,24 @@ fi
 # Changing the binary breaks its signature, so sign the copy again, ad hoc.
 codesign --force --sign - "$WORK/sheets" 2>/dev/null
 
+# A sample config file for the renders of Settings, Terminal that read one. It changes a few
+# settings, and has a line that cannot be used, an unknown key, and a key set twice, so the
+# issues list shows.
+cat > "$WORK/config" <<'CONFIG'
+# Sample config for the renders.
+terminal.font-size = 13
+terminal.line-spacing = 1.1
+terminal.background = "#16181C"   # a little darker
+terminal.cursor-style = "bar"
+terminal.cursor-blink = false
+terminal.option-as-meta = "left"
+terminal.scrollback-lines = lots
+terminal.shell-arguments = ["-l"]
+terminal.font-size = 14
+terminal.colour = "#FFFFFF"
+CONFIG
+
 # Sparkle is found next to the original binary.
 mkdir -p "$OUT"
 rm -f "$OUT"/*.png
-DYLD_FRAMEWORK_PATH="$(dirname "$BIN")" "$WORK/sheets" --render-previews "$OUT"
+SHEETS_CONFIG_PATH="$WORK/config" DYLD_FRAMEWORK_PATH="$(dirname "$BIN")" "$WORK/sheets" --render-previews "$OUT"

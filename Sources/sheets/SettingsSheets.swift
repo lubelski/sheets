@@ -28,11 +28,13 @@ struct SettingsSectionSheet: View {
     let section: SettingsSection
     let updater: AppUpdater
     let buildInfo: BuildInfo
+    let config: ConfigStore
 
     var body: some View {
         switch section {
         case .general: GeneralSettings(updater: updater, buildInfo: buildInfo)
-        case .experiments: ExperimentsSettings()
+        case .terminal: TerminalSettings(config: config)
+        case .experiments: ExperimentsSettings(config: config)
         case .debugging: DebuggingSettings(buildInfo: buildInfo)
         }
     }
@@ -80,6 +82,8 @@ struct GeneralSettings: View {
 
 /// Features being tried: a switch for each, off until turned on, or a note that there are none.
 struct ExperimentsSettings: View {
+    let config: ConfigStore
+
     var body: some View {
         if Experiment.allCases.isEmpty {
             VStack(spacing: 6) {
@@ -96,9 +100,9 @@ struct ExperimentsSettings: View {
         } else {
             Form {
                 Section {
-                    ForEach(Experiment.allCases) { ExperimentToggle(experiment: $0) }
+                    ForEach(Experiment.allCases) { ExperimentToggle(experiment: $0, config: config) }
                 } footer: {
-                    Text("Features being tried. Each is off until turned on.")
+                    Text("Features being tried. Each is off until turned on, and is an experiments key in the config file.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -108,21 +112,26 @@ struct ExperimentsSettings: View {
     }
 }
 
-/// One experiment's switch, kept in `UserDefaults` under the experiment's key.
+/// One experiment's switch, kept in the config file under the experiment's key.
 struct ExperimentToggle: View {
     let experiment: Experiment
-    @AppStorage private var isOn: Bool
-
-    init(experiment: Experiment) {
-        self.experiment = experiment
-        _isOn = AppStorage(wrappedValue: false, experiment.key)
-    }
+    let config: ConfigStore
 
     var body: some View {
-        Toggle(isOn: $isOn) {
+        Toggle(isOn: Binding(
+            get: { experiment.isOn(in: config.config) },
+            // Off is the default, so turning a switch off removes its line.
+            set: { on in
+                if on {
+                    try? config.set(experiment.definition, to: .bool(true))
+                } else {
+                    try? config.remove(experiment.definition)
+                }
+            })) {
             Text(experiment.title)
             Text(experiment.summary)
         }
+        .help(experiment.key)
     }
 }
 

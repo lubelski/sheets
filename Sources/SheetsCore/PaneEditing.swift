@@ -213,11 +213,13 @@ public struct PaneEditor: Hashable, Sendable {
         self.stack = stack
     }
 
-    /// What the app starts with the first time: one terminal in the home folder, open.
-    public static func firstLaunch(homeFolder: String, id: PaneID = .unique()) -> PaneEditor {
+    /// What the app starts with the first time: one terminal in the starting folder, which is
+    /// the home folder unless the config file names another, open.
+    public static func firstLaunch(homeFolder: String, startingFolder: String? = nil, id: PaneID = .unique()) -> PaneEditor {
+        let folder = startingFolder ?? homeFolder
         let terminal = Pane(
-            id: id, kind: .terminal, title: PaneTree.title(forFolder: homeFolder, home: homeFolder),
-            folder: homeFolder)
+            id: id, kind: .terminal, title: PaneTree.title(forFolder: folder, home: homeFolder),
+            folder: folder)
         let tree = PaneTree(roots: [terminal])
         return PaneEditor(tree: tree, stack: SheetStack([id]))
     }
@@ -235,17 +237,25 @@ public struct PaneEditor: Hashable, Sendable {
     /// Adds a new pane near what is selected (see `PaneTree.placeForNewPane(near:)`) and opens
     /// it as a sheet. Returns its id.
     @discardableResult
-    public mutating func add(_ kind: PaneKind, near selection: PaneID?, homeFolder: String, id: PaneID = .unique()) -> PaneID? {
-        add(kind, at: tree.placeForNewPane(near: selection), homeFolder: homeFolder, id: id)
+    public mutating func add(
+        _ kind: PaneKind, near selection: PaneID?, homeFolder: String, startingFolder: String? = nil,
+        id: PaneID = .unique()
+    ) -> PaneID? {
+        add(kind, at: tree.placeForNewPane(near: selection), homeFolder: homeFolder, startingFolder: startingFolder, id: id)
     }
 
     /// Adds a new pane at a place and opens it as a sheet, with every pane above it under it.
-    /// A new terminal starts in its nearest group's folder, or the home folder, and is named
-    /// for that folder. Returns its id, or nil when nothing can go there.
+    /// A new terminal starts in its nearest group's folder, or else the starting folder, which
+    /// is the home folder unless the config file names another, and is named for that folder.
+    /// Returns its id, or nil when nothing can go there.
     @discardableResult
-    public mutating func add(_ kind: PaneKind, at place: PanePlace, homeFolder: String, id: PaneID = .unique()) -> PaneID? {
+    public mutating func add(
+        _ kind: PaneKind, at place: PanePlace, homeFolder: String, startingFolder: String? = nil,
+        id: PaneID = .unique()
+    ) -> PaneID? {
         guard kind != .settings else { return nil }
-        let folder = kind == .terminal ? (tree.folder(forNewPaneUnder: place.parent) ?? homeFolder) : nil
+        let fallback = startingFolder ?? homeFolder
+        let folder = kind == .terminal ? (tree.folder(forNewPaneUnder: place.parent) ?? fallback) : nil
         let pane = Pane(
             id: id, kind: kind, title: Self.newTitle(for: kind, folder: folder, homeFolder: homeFolder),
             folder: folder)
