@@ -1,0 +1,6 @@
+/.build/
+/build/
+/.wt/
+/.swiftpm/
+xcuserdata/
+.DS_Store
