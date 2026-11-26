@@ -21,10 +21,8 @@ struct GroupSheet: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(pane.children) { child in
-                            SheetRow(
-                                id: child.id, title: child.title, summary: child.summary,
-                                isOpen: child.id == openedID, open: { open(child.id) })
-                            .contextMenu { PaneContextMenu(model: model, id: child.id) }
+                            ChildRow(model: model, pane: child, isOpen: child.id == openedID) { open(child.id) }
+                                .contextMenu { PaneContextMenu(model: model, id: child.id) }
                         }
                     }
                     .padding(.vertical, 6)
@@ -32,6 +30,19 @@ struct GroupSheet: View {
             }
         }
         .contextMenu { NewPaneMenuItems(model: model, near: pane.id) }
+    }
+}
+
+/// One child's row in a group's sheet. It reads what the child shows here, so when a terminal's
+/// shell reports a new title or folder, only this row is drawn again.
+private struct ChildRow: View {
+    let model: SheetsModel
+    let pane: Pane
+    let isOpen: Bool
+    let open: () -> Void
+
+    var body: some View {
+        SheetRow(id: pane.id, label: model.label(for: pane), isOpen: isOpen, open: open)
     }
 }
 

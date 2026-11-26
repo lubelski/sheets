@@ -35,7 +35,7 @@ enum PreviewRenderer {
         typealias ID = SamplePanes.ID
         let settings = SettingsSection.settingsID
         // A placeholder home folder, so the first-launch render names no real one.
-        let home = "/home/someone"
+        let home = SamplePanes.home
         // Terminals get sessions that run nothing, so a render starts no shell. The render asks
         // for a stand-in where the terminal goes, which the app never draws. A test of what a
         // shell reports plays the shell.
@@ -60,12 +60,12 @@ enum PreviewRenderer {
             return ConfigStore(path: path, displayPath: shownConfigPath, watches: false)
         }
         func sample(
-            _ stack: SheetStack, renaming: PaneID? = nil, shellReports: [(PaneID, TerminalEvent)] = [],
-            config: @escaping @MainActor () -> ConfigStore = defaultConfig
+            _ stack: SheetStack, tree: PaneTree = SamplePanes.tree, renaming: PaneID? = nil,
+            shellReports: [(PaneID, TerminalEvent)] = [], config: @escaping @MainActor () -> ConfigStore = defaultConfig
         ) -> () -> SheetsModel {
             {
                 let model = SheetsModel(
-                    tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false, homeFolder: home,
+                    tree: tree, defaults: defaults, stack: stack, animates: false, homeFolder: home,
                     terminals: terminals(), config: config())
                 model.renaming = renaming
                 for (id, event) in shellReports {
@@ -84,8 +84,20 @@ enum PreviewRenderer {
             ("sidebar", sample(SheetStack())),
             ("group-open", sample(SheetStack([ID.acmeWeb]))),
             ("terminal-over-group", sample(SheetStack([ID.acmeWeb, ID.devServer]))),
+            // The shell set a title and moved to a deeper folder. The terminal's rows and its
+            // title bar show the title, and its rows show the folder.
             ("terminal-with-shell-title", sample(
-                SheetStack([ID.acmeWeb, ID.devServer]), shellReports: [(ID.devServer, .titleChanged("npm run dev"))])),
+                SheetStack([ID.acmeWeb, ID.devServer]), shellReports: [
+                    (ID.devServer, .titleChanged("npm run dev")),
+                    (ID.devServer, .folderChanged(home + "/dev/acme-web/packages/storefront")),
+                ])),
+            // A terminal the person renamed keeps their name, whatever title its shell sets.
+            ("terminal-named-by-hand", sample(
+                SheetStack([ID.acmeWeb, ID.claude]), tree: {
+                    var tree = SamplePanes.tree
+                    tree.rename(ID.claude, to: "assistant")
+                    return tree
+                }(), shellReports: [(ID.claude, .titleChanged("Claude Code"))])),
             ("terminal-exited", sample(SheetStack([ID.scratch]), shellReports: [(ID.scratch, .exited(status: 1))])),
             ("page-over-terminal", sample(SheetStack([ID.acmeWeb, ID.devServer, ID.localhost]))),
             ("settings-open", sample(SheetStack([settings]))),

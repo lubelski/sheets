@@ -54,8 +54,15 @@ stack of sheets, and split layout are in place with tests.
 - The terminal on top has the keyboard. Escape goes to it, since shells and `vim` need it.
   **Back** (Command-[) in the Go menu closes the top sheet whatever is in it. Command-W
   closes the pane, which ends its shell.
-- The title bar shows the pane's name, then any title the shell set, lighter. The pane keeps
-  its own name.
+- A terminal's row, in the sidebar and in a group's sheet, shows the title its shell or a
+  program set, or the pane's own name when none is set. Under it is the terminal's folder, with
+  the home folder as `~`, such as `~/dev/acme-web · 1 page`: the folder the shell last
+  reported, or else the one it started in. A long folder is cut short at its start, so its last
+  folder stays readable. The sheet's title bar shows the same title as the row.
+- A name typed with **Rename…** wins over the shell's title. The pane keeps its own name
+  either way, and the rename field starts from it.
+- A shell reports its folder only if its setup sends it (the `OSC 7` sequence), as many prompt
+  frameworks do. Without that, the folder stays the one the terminal started in.
 - When a shell exits by itself, its output stays, with a line at the foot saying so and
   **Start Again** (Return).
 - Copy, paste, and select all are in the Edit menu, as usual. By default Option types

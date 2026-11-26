@@ -13,18 +13,22 @@ public enum SamplePanes {
         public static let scratch: PaneID = "scratch"
     }
 
+    /// The placeholder home folder the sample terminals' folders are in.
+    public static let home = "/home/someone"
+
     /// A group `acme-web` holding the terminals `dev server` and `claude`, with a page
     /// `localhost:5173` opened from `dev server`. Then two empty groups, `acme-api` and
-    /// `homelab`, and a loose terminal, `scratch`, at the top level.
+    /// `homelab`, and a loose terminal, `scratch`, at the top level. The terminals in `acme-web`
+    /// start in `~/dev/acme-web`, and `scratch` in the home folder.
     public static let tree = PaneTree(roots: [
         Pane(id: ID.acmeWeb, kind: .group, title: "acme-web", children: [
             Pane(id: ID.devServer, kind: .terminal, title: "dev server", children: [
                 Pane(id: ID.localhost, kind: .page, title: "localhost:5173"),
-            ]),
-            Pane(id: ID.claude, kind: .terminal, title: "claude"),
+            ], folder: home + "/dev/acme-web"),
+            Pane(id: ID.claude, kind: .terminal, title: "claude", folder: home + "/dev/acme-web"),
         ]),
         Pane(id: ID.acmeAPI, kind: .group, title: "acme-api"),
         Pane(id: ID.homelab, kind: .group, title: "homelab"),
-        Pane(id: ID.scratch, kind: .terminal, title: "scratch"),
+        Pane(id: ID.scratch, kind: .terminal, title: "scratch", folder: home),
     ])
 }

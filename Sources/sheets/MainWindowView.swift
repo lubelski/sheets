@@ -62,8 +62,8 @@ struct SidebarSheet: View {
                     VStack(spacing: 0) {
                         ForEach(rows) { row in
                             SidebarRow(
-                                row: row, isSelected: row.id == selected,
-                                renaming: model.renaming == row.id ? model : nil
+                                model: model, row: row, isSelected: row.id == selected,
+                                isRenaming: model.renaming == row.id
                             ) { model.show(row.id) }
                             .contextMenu { PaneContextMenu(model: model, id: row.id) }
                             .modifier(SidebarRowDragging(
@@ -86,7 +86,7 @@ struct SidebarSheet: View {
                 }
                 Divider().opacity(0.6)
                 ForEach(pinned) { row in
-                    SidebarRow(row: row, isSelected: row.id == selected) { model.openSettings() }
+                    SidebarRow(model: model, row: row, isSelected: row.id == selected) { model.openSettings() }
                 }
                 .padding(.vertical, 4)
             }
@@ -105,29 +105,34 @@ struct SidebarSheet: View {
 }
 
 /// One sidebar row: a small optional icon in line with a larger title, over a smaller, grayer
-/// line saying what the pane is. Indented by its depth in the tree.
+/// line saying what the pane is, or for a terminal, where it is. Indented by its depth in the
+/// tree. What it says comes from `SheetsModel.label(for:)`, read here so that a terminal's new
+/// title or folder draws only its own row again.
 struct SidebarRow: View {
+    let model: SheetsModel
     let row: PaneTree.Row
     let isSelected: Bool
-    /// The model while this row's title is being edited in place, or nil.
-    var renaming: SheetsModel?
+    /// True while this row's title is being edited in place.
+    var isRenaming = false
     let select: () -> Void
 
     var body: some View {
-        if let renaming {
+        if isRenaming {
             // Not a button while its title is a field, so clicks in the field stay there.
-            label(renaming: renaming)
+            label(renaming: true)
                 .background { RowSelection(isSelected: isSelected) }
         } else {
-            Button(action: select) { label(renaming: nil) }
+            Button(action: select) { label(renaming: false) }
                 .buttonStyle(.plain)
                 .background { RowSelection(isSelected: isSelected) }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
     }
 
-    private func label(renaming model: SheetsModel?) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+    private func label(renaming: Bool) -> some View {
+        let pane = model.tree.pane(row.id)
+        let shown = pane.map(model.label(for:))
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
             // The icon's column is kept for rows without one, so titles at the same depth
             // line up.
             Image(systemName: symbol ?? "circle")
@@ -138,20 +143,27 @@ struct SidebarRow: View {
                 .opacity(symbol == nil ? 0 : 1)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                if let model {
+                if renaming {
+                    // The field starts from the pane's own name, not a title its shell set.
                     RenameField(title: row.title) { model.finishRenaming(row.id, to: $0) } cancel: {
                         model.cancelRenaming()
                     }
                     .font(.system(size: 12.5, weight: .semibold))
                 } else {
-                    Text(row.title)
+                    Text(shown?.title ?? row.title)
                         .font(.system(size: 12.5, weight: .semibold))
                         .lineLimit(1)
                 }
-                Text(row.summary)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let shown {
+                    PaneSubtitle(label: shown)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(row.summary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.leading, 10 + CGFloat(row.depth) * 14)

@@ -160,6 +160,13 @@ final class SheetsModel {
         terminals?.restart(pane)
     }
 
+    /// What a pane's row and title bar say. A terminal's title and folder come from its session,
+    /// so a view that reads this while drawing is drawn again when the shell reports either.
+    /// See `PaneLabel`.
+    func label(for pane: Pane) -> PaneLabel {
+        terminals?.label(for: pane, home: homeFolder) ?? PaneLabel(pane: pane, folder: pane.folder, home: homeFolder)
+    }
+
     /// Why a terminal pane has no session, when that is known: there is no engine to run it.
     func whyTerminalHasNoSession(_ id: PaneID) -> String? {
         guard let terminals else { return "There is no terminal engine." }

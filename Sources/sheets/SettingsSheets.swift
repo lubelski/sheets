@@ -14,7 +14,7 @@ struct SettingsSheet: View {
             VStack(spacing: 0) {
                 ForEach(SettingsSection.allCases) { section in
                     SheetRow(
-                        id: section.paneID, title: section.title, summary: section.summary,
+                        id: section.paneID, label: PaneLabel(title: section.title, subtitle: section.summary),
                         isOpen: section.paneID == openedID, open: { open(section.paneID) })
                 }
             }

@@ -133,7 +133,9 @@ struct SheetStackView<Sheet: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .modifier(CoveredSheet(
                 isCovered: level.isCovered,
-                backLabel: "Back to \(level.pane?.title ?? "")",
+                // Read only while covered, and inside the modifier, so a shell's new title
+                // redraws the strip's label and not the whole stack.
+                backLabel: { "Back to \(level.pane.map { model.label(for: $0).title } ?? "")" },
                 click: { row in model.clickStrip(at: level.depth, on: row) }))
             .modifier(SheetCard(depth: level.depth))
         }
@@ -142,17 +144,16 @@ struct SheetStackView<Sheet: View>: View {
 
 // MARK: - Parts a sheet is built from
 
-/// The title bar of a pane's sheet, with what it says worked out from the pane. A terminal's
-/// shell can set a title while the sheet shows, so it is read here, where only the bar redraws
-/// for it. A right click on a group's bar adds a pane to the group, as a right click on the
-/// rest of its sheet does.
+/// The title bar of a pane's sheet, with what it says worked out from the pane: the same title
+/// its row shows. A terminal's shell can set a title while the sheet shows, so it is read here,
+/// where only the bar redraws for it. A right click on a group's bar adds a pane to the group,
+/// as a right click on the rest of its sheet does.
 struct PaneTitleBar: View {
     let model: SheetsModel
     let pane: Pane
 
     var body: some View {
-        let shellTitle = pane.kind == .terminal ? model.terminals?.record(for: pane.id)?.title : nil
-        let bar = SheetTitleBar(title: SheetTitle(pane: pane, shellTitle: shellTitle), paneID: pane.id)
+        let bar = SheetTitleBar(title: SheetTitle(title: model.label(for: pane).title), paneID: pane.id)
         if pane.kind == .group {
             bar.contextMenu { NewPaneMenuItems(model: model, near: pane.id) }
         } else {
@@ -161,8 +162,8 @@ struct PaneTitleBar: View {
     }
 }
 
-/// A sheet's title bar: the pane's name, centered, over a faint line. A detail, such as the
-/// title a terminal's shell set, follows the name in a lighter weight and color.
+/// A sheet's title bar: the pane's title, centered, over a faint line. A long title is cut
+/// short in the middle.
 ///
 /// The bar is one height for every pane, `SheetTitle.barHeight`, and it never moves while a
 /// swap changes the sheet's content. Its words are known by their pane, so when a swap puts
@@ -190,19 +191,11 @@ struct SheetTitleBar: View {
     }
 
     private var words: some View {
-        HStack(spacing: 6) {
-            Text(title.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .layoutPriority(1)
-            if let detail = title.detail {
-                Text(detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .lineLimit(1)
-        .truncationMode(.middle)
+        Text(title.title)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
     }
 }
 
@@ -210,8 +203,7 @@ struct SheetTitleBar: View {
 /// chevron. The row whose pane is open stays marked while that pane covers it.
 struct SheetRow: View {
     let id: PaneID
-    let title: String
-    let summary: String
+    let label: PaneLabel
     let isOpen: Bool
     let open: () -> Void
 
@@ -219,13 +211,12 @@ struct SheetRow: View {
         Button(action: open) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Text(label.title)
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
-                    Text(summary)
+                    PaneSubtitle(label: label)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
@@ -242,6 +233,30 @@ struct SheetRow: View {
         .background { RowSelection(isSelected: isOpen) }
         .accessibilityAddTraits(isOpen ? .isSelected : [])
         .anchorPreference(key: SheetRowAnchors.self, value: .bounds) { [id: $0] }
+    }
+}
+
+/// The second line of a pane's row, on one line. A terminal's folder is cut short at its head,
+/// so its last folder stays readable, and the count after it always shows whole.
+struct PaneSubtitle: View {
+    let label: PaneLabel
+
+    var body: some View {
+        if let folder = label.folder {
+            HStack(spacing: 0) {
+                Text(folder)
+                    .truncationMode(.head)
+                if let detail = label.folderDetail {
+                    Text(" · " + detail)
+                        .fixedSize()
+                }
+            }
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(label.subtitle)
+                .lineLimit(1)
+        }
     }
 }
 
@@ -349,7 +364,8 @@ struct CoveredDimming: View {
 /// button. A click on its strip goes back to it, or opens another of its rows instead.
 struct CoveredSheet: ViewModifier {
     let isCovered: Bool
-    let backLabel: String
+    /// The label of the "Back to" button, such as "Back to dev server".
+    let backLabel: () -> String
     /// Called with the row the click landed on, if any.
     let click: (PaneID?) -> Void
 
@@ -368,7 +384,7 @@ struct CoveredSheet: ViewModifier {
                             })
                     }
                     .accessibilityElement()
-                    .accessibilityLabel(Text(backLabel))
+                    .accessibilityLabel(Text(backLabel()))
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { click(nil) }
                     .transition(.opacity.ignoringClicksWhileLeaving)

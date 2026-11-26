@@ -45,10 +45,14 @@ public struct Pane: Identifiable, Hashable, Sendable, Codable {
     /// The engine a terminal runs in. Nil for the standard engine, and always nil for other
     /// kinds. See `TerminalEngineRegistry`.
     public var engine: TerminalEngineID?
+    /// True once the person has given the pane a name of their own by renaming it. A terminal
+    /// named by hand shows that name rather than the title its shell sets. See
+    /// `shownTitle(sessionTitle:)`.
+    public var isNamedByHand: Bool
 
     public init(
         id: PaneID, kind: PaneKind, title: String, children: [Pane] = [], folder: String? = nil,
-        engine: TerminalEngineID? = nil
+        engine: TerminalEngineID? = nil, isNamedByHand: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -56,6 +60,25 @@ public struct Pane: Identifiable, Hashable, Sendable, Codable {
         self.children = children
         self.folder = folder
         self.engine = engine
+        self.isNamedByHand = isNamedByHand
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, title, children, folder, engine, isNamedByHand
+    }
+
+    /// Reads a pane. Fields added after the first version are optional, so a pane saved
+    /// without them reads as it did then: no folder, the standard engine, and not named by
+    /// hand.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(PaneID.self, forKey: .id)
+        kind = try container.decode(PaneKind.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        children = try container.decodeIfPresent([Pane].self, forKey: .children) ?? []
+        folder = try container.decodeIfPresent(String.self, forKey: .folder)
+        engine = try container.decodeIfPresent(TerminalEngineID.self, forKey: .engine)
+        isNamedByHand = try container.decodeIfPresent(Bool.self, forKey: .isNamedByHand) ?? false
     }
 
     /// True for Settings and its sections. They are part of the app, not the person's own
@@ -72,13 +95,19 @@ extension Pane {
             return children.isEmpty ? "Empty" : Self.count(children.count, "pane")
         case .terminal, .page:
             let name = kind == .terminal ? "Terminal" : "Page"
-            guard !children.isEmpty else { return name }
-            let allPages = children.allSatisfy { $0.kind == .page }
-            return name + " · " + Self.count(children.count, allPages ? "page" : "pane")
+            return childrenCount.map { name + " · " + $0 } ?? name
         case .settings:
             if let section = SettingsSection(paneID: id) { return section.summary }
             return Self.count(children.count, "section")
         }
+    }
+
+    /// How many panes are under a terminal or a page, such as "1 page" or "2 panes", or nil
+    /// when there are none. "page" when every one is a page.
+    var childrenCount: String? {
+        guard !children.isEmpty else { return nil }
+        let allPages = children.allSatisfy { $0.kind == .page }
+        return Self.count(children.count, allPages ? "page" : "pane")
     }
 
     /// "1 pane", "2 panes".
