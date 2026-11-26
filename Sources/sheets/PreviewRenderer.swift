@@ -33,8 +33,9 @@ enum PreviewRenderer {
         let settings = SettingsSection.settingsID
         // A placeholder home folder, so the first-launch render names no real one.
         let home = "/home/someone"
-        // Terminals get sessions that run nothing, so a render starts no shell and draws a
-        // stand-in where the terminal goes. A test of what a shell reports plays the shell.
+        // Terminals get sessions that run nothing, so a render starts no shell. The render asks
+        // for a stand-in where the terminal goes, which the app never draws. A test of what a
+        // shell reports plays the shell.
         func terminals() -> TerminalSessionStore {
             TerminalSessionStore(engines: TerminalEngineRegistry([StandInTerminalEngine()])) { pane in
                 TerminalLaunch(executable: "/bin/zsh", folder: pane.folder ?? home, environment: [:])
@@ -57,6 +58,9 @@ enum PreviewRenderer {
         // The title bar's menu button is faint until the pointer is over it. One more render
         // draws it lit.
         let hoveredButton = "title-bar-menu-hovered"
+        // What the app shows for a terminal it could not start, here for want of an engine.
+        // This one render draws no stand-in.
+        let notStarted = "terminal-not-started"
         let states: [(String, () -> SheetsModel)] = [
             ("sidebar", sample(SheetStack())),
             ("group-open", sample(SheetStack([ID.acmeWeb]))),
@@ -76,6 +80,13 @@ enum PreviewRenderer {
                     terminals: terminals())
             }),
             (hoveredButton, sample(SheetStack([ID.acmeWeb, ID.devServer]))),
+            (notStarted, {
+                SheetsModel(
+                    tree: SamplePanes.tree, defaults: defaults, stack: SheetStack([ID.scratch]), animates: false,
+                    homeFolder: home, terminals: TerminalSessionStore(engines: TerminalEngineRegistry([])) { pane in
+                        TerminalLaunch(executable: "/bin/zsh", folder: pane.folder ?? home, environment: [:])
+                    })
+            }),
         ]
         let looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
 
@@ -89,6 +100,7 @@ enum PreviewRenderer {
                             model: model, updater: updater, buildInfo: buildInfo, showsHover: name == hoveredButton)
                     }
                     .defaultAppStorage(defaults)
+                    .environment(\.drawsTerminalStandIn, name != notStarted)
                 let url = folder.appending(path: "\(name)-\(look).png")
                 guard let rep = draw(view, appearance: appearance),
                       let data = rep.representation(using: .png, properties: [:])

@@ -103,6 +103,7 @@ The app starts with one terminal, named `~` for the home folder.
 | `Sources/sheets` | The app |
 | `Tests/SheetsCoreTests` | Tests for `SheetsCore`, with a fake terminal engine |
 | `Tests/SheetsSwiftTermEngineTests` | Tests that run real programs in SwiftTerm, with no window |
+| `Tests/SheetsAppTests` | Tests of the app's model and views, drawn in a window never put on screen |
 | `Resources/AppIcon.icon` | The app icon, an Icon Composer file drawn by `scripts/render-icon.sh` |
 | `scripts/bundle.sh` | Builds and signs `build/sheets.app` |
 | `scripts/render-previews.sh` | Draws the window's key states to PNG files, with no window on screen |
@@ -132,7 +133,8 @@ open build/sheets.app
 sample panes, and writes a PNG of each key state in light and dark to `build/renders/`. It runs the app with
 `--render-previews <folder>`, which puts no window on screen, shows no Dock icon, takes no
 focus, and uses a throwaway preferences suite. It starts no shell: a terminal's sheet draws a
-few stand-in lines where the live terminal would be.
+few stand-in lines where the live terminal would be. Only a render draws them. In the app, a
+terminal whose shell could not be started says so, with a Start button.
 
 ```sh
 scripts/render-previews.sh
