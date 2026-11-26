@@ -240,6 +240,31 @@ import Testing
         #expect(editor.stack == SheetStack([ID.acmeWeb]))
     }
 
+    @Test func renamingMarksAPaneNamedByHand() {
+        var editor = editor([ID.acmeWeb])
+        #expect(editor.tree.pane(ID.claude)?.isNamedByHand == false)
+        let renamed = editor.rename(ID.claude, to: "assistant")
+        #expect(renamed)
+        #expect(editor.tree.pane(ID.claude)?.isNamedByHand == true)
+    }
+
+    @Test func keepingTheSameNameChangesNothing() {
+        // A rename that ends without an edit, such as by clicking away, does not mark the pane
+        // named by hand, so its shell's title still shows.
+        var editor = editor([ID.acmeWeb])
+        let renamed = editor.rename(ID.claude, to: " claude ")
+        #expect(!renamed)
+        #expect(editor.tree.pane(ID.claude)?.isNamedByHand == false)
+    }
+
+    @Test func newPanesAreNotNamedByHand() {
+        var editor = editor()
+        let added = editor.add(.terminal, near: nil, homeFolder: "/home/someone", id: "new")
+        #expect(added == "new")
+        #expect(editor.tree.pane("new")?.isNamedByHand == false)
+        #expect(PaneEditor.firstLaunch(homeFolder: "/home/someone", id: "first").tree.pane("first")?.isNamedByHand == false)
+    }
+
     @Test func settingsCannotBeRenamed() {
         var editor = editor()
         do {

@@ -2,28 +2,22 @@ import Testing
 @testable import SheetsCore
 
 @Suite struct SheetTitleTests {
-    @Test func keepsADetailThatSaysSomethingMore() {
-        let title = SheetTitle(title: "dev server", detail: "npm run dev")
-        #expect(title.title == "dev server")
-        #expect(title.detail == "npm run dev")
-    }
-
-    @Test func dropsAnEmptyOrRepeatedDetail() {
-        #expect(SheetTitle(title: "dev server").detail == nil)
-        #expect(SheetTitle(title: "dev server", detail: "").detail == nil)
-        #expect(SheetTitle(title: "dev server", detail: "dev server").detail == nil)
-    }
-
-    @Test func aTerminalShowsTheTitleItsShellSet() {
+    @Test func aTerminalShowsTheTitleItsShellSetInPlaceOfItsName() {
         let pane = Pane(id: "t", kind: .terminal, title: "scratch")
-        #expect(SheetTitle(pane: pane, shellTitle: "vim notes.txt") == SheetTitle(title: "scratch", detail: "vim notes.txt"))
-        #expect(SheetTitle(pane: pane).detail == nil)
+        #expect(SheetTitle(pane: pane, sessionTitle: "vim notes.txt") == SheetTitle(title: "vim notes.txt"))
+        #expect(SheetTitle(pane: pane) == SheetTitle(title: "scratch"))
+        #expect(SheetTitle(pane: pane, sessionTitle: "  ") == SheetTitle(title: "scratch"))
+    }
+
+    @Test func aTerminalNamedByHandKeepsItsName() {
+        let pane = Pane(id: "t", kind: .terminal, title: "assistant", isNamedByHand: true)
+        #expect(SheetTitle(pane: pane, sessionTitle: "vim notes.txt") == SheetTitle(title: "assistant"))
     }
 
     @Test func otherPanesShowOnlyTheirName() {
         for kind in [PaneKind.group, .page, .settings] {
             let pane = Pane(id: "p", kind: kind, title: "Something")
-            #expect(SheetTitle(pane: pane, shellTitle: "ignored") == SheetTitle(title: "Something"))
+            #expect(SheetTitle(pane: pane, sessionTitle: "ignored") == SheetTitle(title: "Something"))
         }
     }
 

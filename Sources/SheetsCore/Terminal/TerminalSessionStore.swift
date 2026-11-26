@@ -21,8 +21,9 @@ public final class TerminalSessionRecord {
     public let session: any TerminalSession
     public let launch: TerminalLaunch
     public fileprivate(set) var status: TerminalSessionStatus = .running
-    /// The title the shell or a program in it set, if any. It is shown beside the pane's own
-    /// title and never renames the pane.
+    /// The title the shell or a program in it set, if any. A terminal's row and title bar show
+    /// it in place of the pane's own name, unless the pane was named by hand. It never renames
+    /// the pane. See `PaneLabel`.
     public fileprivate(set) var title: String?
     /// The working folder the shell last reported, if any.
     public fileprivate(set) var folder: String?

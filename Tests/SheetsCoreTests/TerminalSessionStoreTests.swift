@@ -321,6 +321,20 @@ import Testing
         #expect(try JSONDecoder().decode(Pane.self, from: data) == pane)
     }
 
+    @Test func aPaneNamedByHandIsSavedThatWay() throws {
+        let pane = Pane(id: "t", kind: .terminal, title: "assistant", isNamedByHand: true)
+        let data = try JSONEncoder().encode(pane)
+        #expect(try JSONDecoder().decode(Pane.self, from: data) == pane)
+    }
+
+    @Test func aPaneSavedBeforeHandNamingReadsAsNotNamedByHand() throws {
+        // As saved before panes knew whether they were named by hand, and before engines.
+        let json = #"{"id":{"rawValue":"t"},"kind":"terminal","title":"~","children":[],"folder":"/home/someone"}"#
+        let pane = try JSONDecoder().decode(Pane.self, from: Data(json.utf8))
+        #expect(pane == Pane(id: "t", kind: .terminal, title: "~", folder: "/home/someone"))
+        #expect(!pane.isNamedByHand)
+    }
+
     @Test func aPaneSavedWithoutAnEngineUsesTheStandardOne() throws {
         // A pane saved before panes had engines has no engine key at all.
         let data = try JSONEncoder().encode(Pane(id: "t", kind: .terminal, title: "t"))

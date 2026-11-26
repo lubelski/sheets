@@ -86,7 +86,7 @@ struct CloseConfirmation: ViewModifier {
     func body(content: Content) -> some View {
         let pane = model.pendingClose.flatMap(model.tree.pane)
         content.confirmationDialog(
-            pane.map { "Close “\($0.title)” and everything in it?" } ?? "",
+            pane.map { "Close “\(model.label(for: $0).title)” and everything in it?" } ?? "",
             isPresented: Binding(get: { pane != nil }, set: { if !$0 { model.pendingClose = nil } }),
             presenting: pane
         ) { pane in

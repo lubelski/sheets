@@ -148,13 +148,19 @@ extension PaneTree {
         return remove(id)
     }
 
-    /// Gives a pane a new title, without spaces at either end. Returns false, and nothing
-    /// changes, when the pane is missing or fixed or the title is blank.
+    /// Gives a pane a new title, without spaces at either end, and marks it named by hand, so
+    /// a terminal shows that name rather than the title its shell sets. Returns false, and
+    /// nothing changes, when the pane is missing or fixed, the title is blank, or the title is
+    /// the one it has. Keeping the name it has, as when a rename ends without an edit, leaves a
+    /// pane that was not named by hand as it was.
     @discardableResult
     public mutating func rename(_ id: PaneID, to title: String) -> Bool {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard canEdit(id), !title.isEmpty else { return false }
-        return update(id) { $0.title = title }
+        guard canEdit(id), !title.isEmpty, let pane = pane(id), pane.title != title else { return false }
+        return update(id) {
+            $0.title = title
+            $0.isNamedByHand = true
+        }
     }
 
     /// Moves a pane, with everything under it, to a place.
