@@ -54,6 +54,9 @@ enum PreviewRenderer {
                 return model
             }
         }
+        // The title bar's menu button is faint until the pointer is over it. One more render
+        // draws it lit.
+        let hoveredButton = "title-bar-menu-hovered"
         let states: [(String, () -> SheetsModel)] = [
             ("sidebar", sample(SheetStack())),
             ("group-open", sample(SheetStack([ID.acmeWeb]))),
@@ -72,6 +75,7 @@ enum PreviewRenderer {
                     tree: start.tree, defaults: defaults, stack: start.stack, animates: false, homeFolder: home,
                     terminals: terminals())
             }),
+            (hoveredButton, sample(SheetStack([ID.acmeWeb, ID.devServer]))),
         ]
         let looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
 
@@ -80,6 +84,10 @@ enum PreviewRenderer {
             for (look, appearance) in looks {
                 let model = makeModel()
                 let view = MainWindowView(model: model, updater: updater, buildInfo: buildInfo)
+                    .standardTitleBar {
+                        TitleBarMenuButton(
+                            model: model, updater: updater, buildInfo: buildInfo, showsHover: name == hoveredButton)
+                    }
                     .defaultAppStorage(defaults)
                 let url = folder.appending(path: "\(name)-\(look).png")
                 guard let rep = draw(view, appearance: appearance),
@@ -99,7 +107,8 @@ enum PreviewRenderer {
         for url in written { print(url.path) }
     }
 
-    /// Draws a view in a borderless window that is never put on screen.
+    /// Draws a view in a titled window that is never put on screen, with its title bar, so the
+    /// render shows the bar the app's window has.
     private static func draw(_ view: some View, appearance: NSAppearance.Name) -> NSBitmapImageRep? {
         let root = view
             .frame(width: size.width, height: size.height)
@@ -110,17 +119,19 @@ enum PreviewRenderer {
         hosting.frame = CGRect(origin: .zero, size: size)
         let window = NSWindow(
             contentRect: CGRect(origin: CGPoint(x: -20000, y: -20000), size: size),
-            styleMask: [.borderless], backing: .buffered, defer: false)
+            styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: appearance)
         window.contentView = hosting
+        // The window's frame view holds the title bar as well as the content.
+        let frameView = hosting.superview ?? hosting
         // Give SwiftUI a moment to lay out. The window stays off screen.
         for _ in 0..<5 {
-            hosting.layoutSubtreeIfNeeded()
+            frameView.layoutSubtreeIfNeeded()
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return nil }
-        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        guard let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) else { return nil }
+        frameView.cacheDisplay(in: frameView.bounds, to: rep)
         window.contentView = nil
         return rep
     }
