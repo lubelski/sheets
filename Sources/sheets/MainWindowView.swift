@@ -12,6 +12,7 @@ struct MainWindowView: View {
             content(level)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .modifier(CloseConfirmation(model: model))
     }
 
     @ViewBuilder
@@ -20,7 +21,7 @@ struct MainWindowView: View {
         if let pane = level.pane {
             switch pane.kind {
             case .group:
-                GroupSheet(pane: pane, openedID: level.openedID, open: open)
+                GroupSheet(model: model, pane: pane, openedID: level.openedID, open: open)
             case .terminal, .page:
                 PlaceholderSheet(pane: pane)
             case .settings:
@@ -41,6 +42,10 @@ struct MainWindowView: View {
 struct SidebarSheet: View {
     let model: SheetsModel
     let isCovered: Bool
+    @AppStorage(Experiment.dragToMove.key) private var dragToMove = false
+    /// The row being dragged, and where it would land, while the drag experiment is on.
+    @State private var dragged: PaneID?
+    @State private var dropTarget: SidebarDropTarget?
 
     var body: some View {
         let rows = model.tree.sidebarRows()
@@ -54,10 +59,28 @@ struct SidebarSheet: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(rows) { row in
-                            SidebarRow(row: row, isSelected: row.id == selected) { model.show(row.id) }
+                            SidebarRow(
+                                row: row, isSelected: row.id == selected,
+                                renaming: model.renaming == row.id ? model : nil
+                            ) { model.show(row.id) }
+                            .contextMenu { PaneContextMenu(model: model, id: row.id) }
+                            .modifier(SidebarRowDragging(
+                                model: model, row: row, isOn: dragToMove, dragged: $dragged, target: $dropTarget))
                         }
                     }
                     .padding(.vertical, 8)
+                }
+                // A right click below the rows adds at the top level.
+                .contextMenu { NewPaneMenuItems(model: model, near: nil) }
+                .overlay {
+                    if rows.isEmpty {
+                        Text("No panes. Press ⌘T for a terminal.")
+                            .font(.callout)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(16)
+                            .allowsHitTesting(false)
+                    }
                 }
                 Divider().opacity(0.6)
                 ForEach(pinned) { row in
@@ -75,7 +98,7 @@ struct SidebarSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contentShape(.rect)
         // A click on the covered sidebar away from its rows goes back to it, as on any strip.
-        .onTapGesture { if isCovered { model.clickStrip(at: 0, on: nil) } }
+        .onTapGesture { if isCovered && model.renaming == nil { model.clickStrip(at: 0, on: nil) } }
     }
 }
 
@@ -84,39 +107,56 @@ struct SidebarSheet: View {
 struct SidebarRow: View {
     let row: PaneTree.Row
     let isSelected: Bool
+    /// The model while this row's title is being edited in place, or nil.
+    var renaming: SheetsModel?
     let select: () -> Void
 
     var body: some View {
-        Button(action: select) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                // The icon's column is kept for rows without one, so titles at the same depth
-                // line up.
-                Image(systemName: symbol ?? "circle")
-                    .font(.system(size: 10))
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12)
-                    .opacity(symbol == nil ? 0 : 1)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
+        if let renaming {
+            // Not a button while its title is a field, so clicks in the field stay there.
+            label(renaming: renaming)
+                .background { RowSelection(isSelected: isSelected) }
+        } else {
+            Button(action: select) { label(renaming: nil) }
+                .buttonStyle(.plain)
+                .background { RowSelection(isSelected: isSelected) }
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+        }
+    }
+
+    private func label(renaming model: SheetsModel?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            // The icon's column is kept for rows without one, so titles at the same depth
+            // line up.
+            Image(systemName: symbol ?? "circle")
+                .font(.system(size: 10))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+                .opacity(symbol == nil ? 0 : 1)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                if let model {
+                    RenameField(title: row.title) { model.finishRenaming(row.id, to: $0) } cancel: {
+                        model.cancelRenaming()
+                    }
+                    .font(.system(size: 12.5, weight: .semibold))
+                } else {
                     Text(row.title)
                         .font(.system(size: 12.5, weight: .semibold))
                         .lineLimit(1)
-                    Text(row.summary)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
+                Text(row.summary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .padding(.leading, 10 + CGFloat(row.depth) * 14)
-            .padding(.trailing, 12)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
-        .background { RowSelection(isSelected: isSelected) }
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .padding(.leading, 10 + CGFloat(row.depth) * 14)
+        .padding(.trailing, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
     }
 
     /// Groups have no icon.

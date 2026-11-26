@@ -1,8 +1,10 @@
 import SheetsCore
 import SwiftUI
 
-/// A group's sheet: its children, each a row that opens the child over it.
+/// A group's sheet: its children, each a row that opens the child over it. A right click on a
+/// row edits that pane, and a right click elsewhere adds a pane to the group.
 struct GroupSheet: View {
+    let model: SheetsModel
     let pane: Pane
     let openedID: PaneID?
     let open: (PaneID) -> Void
@@ -22,12 +24,14 @@ struct GroupSheet: View {
                             SheetRow(
                                 id: child.id, title: child.title, summary: child.summary,
                                 isOpen: child.id == openedID, open: { open(child.id) })
+                            .contextMenu { PaneContextMenu(model: model, id: child.id) }
                         }
                     }
                     .padding(.vertical, 6)
                 }
             }
         }
+        .contextMenu { NewPaneMenuItems(model: model, near: pane.id) }
     }
 }
 

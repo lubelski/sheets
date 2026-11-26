@@ -10,9 +10,11 @@ back is always on screen.
 
 ## Status
 
-Early. The app opens a window with sample data and runs no shell yet. The sidebar and the
-stack of sheets over it are drawn, with stand-ins where a terminal or a page will go. The
-models for the pane tree, the stack of sheets, and split layout are in place with tests.
+Early. The app opens a window with one terminal pane and runs no shell yet. Panes can be
+added, closed, renamed, and moved, but nothing is saved, so each launch starts over. The
+sidebar and the stack of sheets over it are drawn, with stand-ins where a terminal or a page
+will go. The models for the pane tree, the stack of sheets, and split layout are in place with
+tests.
 
 ## The idea
 
@@ -34,6 +36,29 @@ models for the pane tree, the stack of sheets, and split layout are in place wit
 - Press Escape to close the top sheet.
 - Click the strip of a covered sheet to go back to it, or click a row in the strip to open that
   row instead.
+
+## Editing panes
+
+The app starts with one terminal, named `~` for the home folder.
+
+- **New Terminal** (Command-T), **New Group** (Shift-Command-N), and **New Page** are in the
+  File menu. The new pane opens as a sheet straight away. It goes last inside the open group,
+  just after the open terminal or page, or at the end of the sidebar when nothing is open.
+- A new terminal starts in the folder of the nearest group above it that has one, or else the
+  home folder, and is named for that folder.
+- A new group starts with its name ready to type.
+- **Close** (Command-W) closes the top sheet's pane and everything under it. With only the
+  sidebar showing, it closes the window. Closing a pane that has panes under it asks first.
+- **Rename…** in the File menu edits the top sheet's name in its sidebar row. Return keeps the
+  new name, Escape keeps the old one.
+- Right-click a sidebar row, or a row in a group's sheet, for the same commands placed near
+  that pane. Right-click empty space in a group's sheet to add to that group, or below the
+  sidebar's rows to add at the top level.
+- Settings and its sections stay as they are: they cannot be closed, renamed, or moved, and
+  nothing goes under them.
+- Dragging sidebar rows to move panes is an experiment, off by default. Turn it on in
+  Settings, Experiments. Drop near the top or bottom of a row to put the pane above or below
+  it, or on the middle to put it inside.
 
 ## Layout
 
@@ -67,7 +92,7 @@ open build/sheets.app
 
 ## Looking at it without opening it
 
-`scripts/render-previews.sh` draws the main window offscreen, with the sample panes, and writes
+`scripts/render-previews.sh` draws the main window offscreen, mostly with sample panes, and writes
 a PNG of each key state in light and dark to `build/renders/`. It runs the app with
 `--render-previews <folder>`, which puts no window on screen, shows no Dock icon, takes no
 focus, and uses a throwaway preferences suite.

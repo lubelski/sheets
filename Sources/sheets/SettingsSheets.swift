@@ -84,21 +84,51 @@ struct GeneralSettings: View {
     }
 }
 
-/// Features being tried. There are none yet, so it says so. When `Experiment` gets its first
-/// case, this lists a switch for each, backed by `Experiment.key`.
+/// Features being tried: a switch for each, off until turned on, or a note that there are none.
 struct ExperimentsSettings: View {
     var body: some View {
-        VStack(spacing: 6) {
-            Text("No experiments right now")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text("Features being tried show up here as switches, off until turned on.")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+        if Experiment.allCases.isEmpty {
+            VStack(spacing: 6) {
+                Text("No experiments right now")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("Features being tried show up here as switches, off until turned on.")
+                    .font(.callout)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Form {
+                Section {
+                    ForEach(Experiment.allCases) { ExperimentToggle(experiment: $0) }
+                } footer: {
+                    Text("Features being tried. Each is off until turned on.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// One experiment's switch, kept in `UserDefaults` under the experiment's key.
+struct ExperimentToggle: View {
+    let experiment: Experiment
+    @AppStorage private var isOn: Bool
+
+    init(experiment: Experiment) {
+        self.experiment = experiment
+        _isOn = AppStorage(wrappedValue: false, experiment.key)
+    }
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text(experiment.title)
+            Text(experiment.summary)
+        }
     }
 }
 
