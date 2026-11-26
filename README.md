@@ -10,11 +10,10 @@ back is always on screen.
 
 ## Status
 
-Early. The app opens a window with one terminal pane and runs no shell yet. Panes can be
-added, closed, renamed, and moved, but nothing is saved, so each launch starts over. The
-sidebar and the stack of sheets over it are drawn, with stand-ins where a terminal or a page
-will go. The models for the pane tree, the stack of sheets, and split layout are in place with
-tests.
+Early. The app opens a window with one terminal running your login shell. Panes can be
+added, closed, renamed, and moved, but nothing is saved, so each launch starts over. Each
+terminal runs a real shell. Pages are still stand-ins. The models for the pane tree, the
+stack of sheets, and split layout are in place with tests.
 
 ## The idea
 
@@ -33,9 +32,41 @@ tests.
 - Pick another row from the same list while one is open, and its sheet stays where it is. Only
   what is on it changes, with a short fade that moves up for a row lower in the list and down
   for one higher. Sheets that were open above it close.
-- Press Escape to close the top sheet.
+- Press Escape, or Command-[, to close the top sheet. While a terminal on top runs its shell,
+  Escape goes to the terminal instead.
 - Click the strip of a covered sheet to go back to it, or click a row in the strip to open that
   row instead.
+
+## Terminals
+
+- A terminal runs your login shell, from your user record or else `/bin/zsh`, as a login
+  shell, in the pane's folder, or your home folder if it has none or it is gone. The shell
+  sees `TERM=xterm-256color`, `COLORTERM=truecolor`, and `TERM_PROGRAM=sheets`, and `LANG`
+  when it was not set.
+- A terminal's shell starts the first time its sheet shows and keeps running while the pane
+  exists, whether its sheet shows or not. Go to another pane and back, and it is the same
+  shell with the same scrollback. Closing the pane, or a pane above it, ends the shell, and
+  so does quitting.
+- The terminal on top has the keyboard. Escape goes to it, since shells and `vim` need it.
+  **Back** (Command-[) in the Go menu closes the top sheet whatever is in it. Command-W
+  closes the pane, which ends its shell.
+- The title bar shows the pane's name, then any title the shell set, lighter. The pane keeps
+  its own name.
+- When a shell exits by itself, its output stays, with a line at the foot saying so and
+  **Start Again** (Return).
+- Copy, paste, and select all are in the Edit menu, as usual. Option types characters
+  such as é rather than acting as Meta.
+- A clicked link opens in the default browser for now.
+
+### Terminal engines
+
+Terminals run through an engine seam in `SheetsCore`: a `TerminalEngine` makes
+`TerminalSession`s, which start a shell, take a font and colors as plain values, and report
+the title, the working folder, the exit status, and clicked links. A terminal pane names its
+engine by id, and `TerminalSessionStore` keeps one session per pane. The first engine is
+[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), in its own target,
+`SheetsSwiftTermEngine`. Nothing else imports it, so another engine can sit beside it or
+replace it, registered in `Sources/sheets/TerminalEngines.swift`.
 
 ## Editing panes
 
@@ -64,9 +95,11 @@ The app starts with one terminal, named `~` for the home folder.
 
 | Path | What it holds |
 |---|---|
-| `Sources/SheetsCore` | The logic, with no UI: the pane tree, the sheet stack, dwindle layout |
+| `Sources/SheetsCore` | The logic, with no UI: the pane tree, the sheet stack, dwindle layout, the terminal engine seam and session store |
+| `Sources/SheetsSwiftTermEngine` | The SwiftTerm terminal engine |
 | `Sources/sheets` | The app |
-| `Tests/SheetsCoreTests` | Tests for `SheetsCore` |
+| `Tests/SheetsCoreTests` | Tests for `SheetsCore`, with a fake terminal engine |
+| `Tests/SheetsSwiftTermEngineTests` | Tests that run real programs in SwiftTerm, with no window |
 | `Resources/AppIcon.icon` | The app icon, an Icon Composer file drawn by `scripts/render-icon.sh` |
 | `scripts/bundle.sh` | Builds and signs `build/sheets.app` |
 | `scripts/render-previews.sh` | Draws the window's key states to PNG files, with no window on screen |
@@ -95,7 +128,8 @@ open build/sheets.app
 `scripts/render-previews.sh` draws the main window offscreen, mostly with sample panes, and writes
 a PNG of each key state in light and dark to `build/renders/`. It runs the app with
 `--render-previews <folder>`, which puts no window on screen, shows no Dock icon, takes no
-focus, and uses a throwaway preferences suite.
+focus, and uses a throwaway preferences suite. It starts no shell: a terminal's sheet draws a
+few stand-in lines where the live terminal would be.
 
 ```sh
 scripts/render-previews.sh
@@ -133,3 +167,34 @@ of `scripts/release.sh`.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The app includes [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm), and
+[Sparkle](https://sparkle-project.org) for updates. SwiftTerm's license follows, and the app
+carries a copy in `Contents/Resources/Licenses/SwiftTerm.txt`.
+
+```
+Copyright (c) 2019-2026 Miguel de Icaza (https://github.com/migueldeicaza)
+Copyright (c) 2017-2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
+Copyright (c) 2014-2016, SourceLair Private Company (https://www.sourcelair.com)
+Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/)
+Copyright (c) 2016 Ryan L McIntyre (Powerline Extra Symbols flame silhouette, https://github.com/ryanoasis/powerline-extra-symbols)
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```

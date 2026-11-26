@@ -35,8 +35,7 @@ struct GroupSheet: View {
     }
 }
 
-/// A terminal's or a page's sheet. There is no terminal engine or web view yet, so under its
-/// title bar it says what will be there.
+/// A page's sheet. There is no web view yet, so under its title bar it says what will be there.
 struct PlaceholderSheet: View {
     let pane: Pane
 
@@ -44,10 +43,10 @@ struct PlaceholderSheet: View {
         VStack(spacing: 0) {
             SheetTitleBar(title: pane.title)
             VStack(spacing: 6) {
-                Text(pane.kind == .page ? "No page view yet" : "No terminal yet")
+                Text("No page view yet")
                     .font(.headline)
                     .foregroundStyle(.secondary)
-                Text(pane.kind == .page ? "The page will load here." : "A shell will run here.")
+                Text("The page will load here.")
                     .font(.callout)
                     .foregroundStyle(.tertiary)
             }
