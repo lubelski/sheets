@@ -16,6 +16,7 @@ import Testing
     @Test func debuggingIsAlwaysLastAndExperimentsSecondToLast() {
         let sections = SettingsSection.allCases
         #expect(sections.first == .general)
+        #expect(sections == [.general, .terminal, .experiments, .debugging])
         #expect(sections.last == .debugging)
         #expect(sections.dropLast().last == .experiments)
     }
@@ -90,12 +91,46 @@ import Testing
     }
 
     @Test func experimentsAreOffUntilTurnedOn() {
-        let defaults = freshDefaults()
         #expect(Experiment.allCases == [.dragToMove])
-        #expect(Experiment.allCases.allSatisfy { !$0.isOn(in: defaults) })
-        defaults.set(true, forKey: Experiment.dragToMove.key)
-        #expect(Experiment.dragToMove.isOn(in: defaults))
+        #expect(Experiment.allCases.allSatisfy { !$0.isOn(in: .defaults) })
+        let on = Config.load("experiments.drag-to-move = true").config
+        #expect(Experiment.dragToMove.isOn(in: on))
         #expect(Set(Experiment.allCases.map(\.key)).count == Experiment.allCases.count)
+    }
+
+    @Test func everyExperimentIsAnExperimentsKeyInTheConfigFile() {
+        for experiment in Experiment.allCases {
+            #expect(experiment.key.hasPrefix("experiments."))
+            #expect(ConfigKeys.definition(for: experiment.key) == experiment.definition)
+            #expect(experiment.definition.kind == .bool)
+            #expect(experiment.definition.defaultValue == .bool(false))
+        }
+        #expect(Experiment.dragToMove.key == "experiments.drag-to-move")
+    }
+
+    @MainActor
+    @Test func aSwitchOnInDefaultsMovesToTheConfigFileOnce() throws {
+        let defaults = freshDefaults()
+        defaults.set(true, forKey: Experiment.dragToMove.legacyDefaultsKey)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "SettingsTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let store = ConfigStore(path: folder.appending(path: "config").path, watches: false)
+        Experiment.moveSwitchesFromDefaults(defaults, to: store)
+        #expect(Experiment.dragToMove.isOn(in: store.config))
+        #expect(defaults.object(forKey: Experiment.dragToMove.legacyDefaultsKey) == nil)
+        #expect(try String(contentsOf: folder.appending(path: "config"), encoding: .utf8) == "experiments.drag-to-move = true\n")
+    }
+
+    @MainActor
+    @Test func aSwitchOffInDefaultsWritesNothing() {
+        let defaults = freshDefaults()
+        defaults.set(false, forKey: Experiment.dragToMove.legacyDefaultsKey)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "SettingsTests-\(UUID().uuidString)")
+        let store = ConfigStore(path: folder.appending(path: "config").path, watches: false)
+        Experiment.moveSwitchesFromDefaults(defaults, to: store)
+        #expect(!store.fileExists)
+        #expect(!FileManager.default.fileExists(atPath: folder.path))
+        #expect(defaults.object(forKey: Experiment.dragToMove.legacyDefaultsKey) == nil)
     }
 
     @Test func signingIsDescribedInWords() {
@@ -124,7 +159,7 @@ import Testing
         #expect(tree.pane(ID.devServer)?.summary == "Terminal · 1 page")
         #expect(tree.pane(ID.claude)?.summary == "Terminal")
         #expect(tree.pane(ID.localhost)?.summary == "Page")
-        #expect(SettingsSection.pane.summary == "3 sections")
+        #expect(SettingsSection.pane.summary == "4 sections")
         #expect(SettingsSection.pane.children[0].summary == SettingsSection.general.summary)
     }
 

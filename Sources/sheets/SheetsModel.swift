@@ -19,7 +19,11 @@ final class SheetsModel {
     /// One live session per terminal pane, or nil where terminals show a stand-in. See
     /// `TerminalSessionStore` for when sessions start and end.
     let terminals: TerminalSessionStore?
-    /// Where a new terminal starts when no group above it has a folder.
+    /// The config file: the terminals' look and behavior, the starting folder, and the
+    /// experiments' switches. A change to it, from Settings or from anywhere else, reaches the
+    /// terminals straight away.
+    let config: ConfigStore
+    /// The home folder, which a terminal's name is relative to.
     @ObservationIgnored let homeFolder: String
     @ObservationIgnored private let settingsMemory: SettingsSectionMemory
     /// Whether changes animate. Off for renders, which draw one state each.
@@ -32,14 +36,15 @@ final class SheetsModel {
 
     /// `defaults` is where Settings keeps its open section. `tree` gets Settings added if it
     /// does not have it. `terminals` runs the terminals' shells. Without it, terminals show a
-    /// stand-in.
+    /// stand-in. `config` is the config file, whose settings the terminals take.
     init(
         tree: PaneTree, defaults: UserDefaults = .standard, stack: SheetStack = SheetStack(), animates: Bool = true,
-        homeFolder: String = NSHomeDirectory(), terminals: TerminalSessionStore? = nil
+        homeFolder: String = NSHomeDirectory(), terminals: TerminalSessionStore? = nil, config: ConfigStore
     ) {
         self.tree = tree.addingSettings()
         self.stack = stack
         self.homeFolder = homeFolder
+        self.config = config
         self.settingsMemory = SettingsSectionMemory(defaults: defaults)
         self.animates = animates
         self.terminals = terminals
@@ -48,7 +53,29 @@ final class SheetsModel {
             // checks. This is where a page will slide over its terminal instead.
             session.openWithDefaultHandler(link)
         }
+        terminals?.appearance = config.config.terminalAppearance
+        terminals?.behavior = config.config.terminalBehavior
+        config.changed = { [weak terminals] _, new in
+            terminals?.appearance = new.terminalAppearance
+            terminals?.behavior = new.terminalBehavior
+        }
         syncTerminals()
+    }
+
+    /// Where a new terminal starts when no group above it has a folder: the config file's
+    /// starting folder, or the home folder.
+    var startingFolder: String {
+        config.config.startingFolder(home: homeFolder)
+    }
+
+    /// How terminals look now.
+    var terminalAppearance: TerminalAppearance {
+        config.config.terminalAppearance
+    }
+
+    /// Whether an experiment's switch is on in the config file.
+    func isOn(_ experiment: Experiment) -> Bool {
+        experiment.isOn(in: config.config)
     }
 
     /// Ends every shell when the app quits. Only the app's own model does this, not one made
@@ -94,16 +121,25 @@ final class SheetsModel {
         change { $0 = memory.stack(openingSettingsFrom: $0) }
     }
 
-    /// A model that starts the way the app does the first time: one terminal in the home
-    /// folder, open, running the person's login shell.
-    static func firstLaunch(defaults: UserDefaults = .standard, homeFolder: String = NSHomeDirectory()) -> SheetsModel {
-        let start = PaneEditor.firstLaunch(homeFolder: homeFolder)
+    /// A model that starts the way the app does the first time: one terminal in the starting
+    /// folder, open, running the person's login shell, or the shell the config file names.
+    static func firstLaunch(
+        defaults: UserDefaults = .standard, homeFolder: String = NSHomeDirectory(),
+        config: ConfigStore = ConfigStore(path: ConfigFileLocation.current())
+    ) -> SheetsModel {
+        Experiment.moveSwitchesFromDefaults(defaults, to: config)
+        let start = PaneEditor.firstLaunch(
+            homeFolder: homeFolder, startingFolder: config.config.startingFolder(home: homeFolder))
         let version = BuildInfo.current().version
-        let terminals = TerminalSessionStore(engines: TerminalEngines.registry()) { pane in
-            TerminalLaunch.loginShell(in: pane.folder, programVersion: version)
+        // Read when each shell starts, so a change to the shell applies to the next terminal.
+        let terminals = TerminalSessionStore(engines: TerminalEngines.registry()) { [weak config] pane in
+            let settings = config?.config ?? .defaults
+            return TerminalLaunch.loginShell(
+                in: pane.folder, shell: settings.shell, arguments: settings.shellArguments, programVersion: version)
         }
         let model = SheetsModel(
-            tree: start.tree, defaults: defaults, stack: start.stack, homeFolder: homeFolder, terminals: terminals)
+            tree: start.tree, defaults: defaults, stack: start.stack, homeFolder: homeFolder, terminals: terminals,
+            config: config)
         model.endTerminalsOnQuit()
         return model
     }
@@ -137,9 +173,10 @@ final class SheetsModel {
     func add(_ kind: PaneKind, near row: PaneID? = nil) {
         renaming = nil
         let home = homeFolder
+        let start = startingFolder
         let near = row ?? selection
         var added: PaneID?
-        edit { added = $0.add(kind, near: near, homeFolder: home) }
+        edit { added = $0.add(kind, near: near, homeFolder: home, startingFolder: start) }
         if kind == .group, let added { renaming = added }
     }
 

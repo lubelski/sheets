@@ -61,6 +61,13 @@ public final class TerminalSessionStore {
             for record in records.values { record.session.apply(appearance) }
         }
     }
+    /// The behavior of every session, now and later. Scrollback reaches only new sessions.
+    @ObservationIgnored public var behavior: TerminalBehavior {
+        didSet {
+            guard behavior != oldValue else { return }
+            for record in records.values { record.session.apply(behavior) }
+        }
+    }
     /// Called when the person clicks a link in a terminal, with the terminal's pane. This is
     /// where a page sheet will open from a link.
     @ObservationIgnored public var linkClicked: ((PaneID, TerminalLink, any TerminalSession) -> Void)?
@@ -69,10 +76,11 @@ public final class TerminalSessionStore {
     ///   `TerminalLaunch.loginShell(in: pane.folder, programVersion:)`.
     public init(
         engines: TerminalEngineRegistry, appearance: TerminalAppearance = .standard,
-        launch: @escaping (Pane) -> TerminalLaunch
+        behavior: TerminalBehavior = .standard, launch: @escaping (Pane) -> TerminalLaunch
     ) {
         self.engines = engines
         self.appearance = appearance
+        self.behavior = behavior
         self.makeLaunch = launch
     }
 
@@ -105,11 +113,12 @@ public final class TerminalSessionStore {
         guard pane.kind == .terminal else { return nil }
         if let existing = records[pane.id] { return existing }
         guard let engine = engines.engine(for: pane.engine) else { return nil }
-        let session = engine.makeSession()
+        let session = engine.makeSession(appearance: appearance, behavior: behavior)
         let record = TerminalSessionRecord(
             paneID: pane.id, engine: engine.id, session: session, launch: makeLaunch(pane))
         records[pane.id] = record
         session.apply(appearance)
+        session.apply(behavior)
         session.events = { [weak self, weak record] event in
             guard let self, let record else { return }
             self.handle(event, from: record)

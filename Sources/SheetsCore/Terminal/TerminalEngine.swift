@@ -79,8 +79,12 @@ public protocol TerminalSession: AnyObject {
     /// Sends text to the shell as if it were typed.
     func send(_ text: String)
 
-    /// Sets the font and colors.
+    /// Sets the font, colors, and cursor.
     func apply(_ appearance: TerminalAppearance)
+
+    /// Sets the keyboard, mouse, and bell behavior. Scrollback is read when the session is
+    /// made, so a change to it reaches only new sessions.
+    func apply(_ behavior: TerminalBehavior)
 
     /// Opens a link the way the engine would by itself, after its own safety checks.
     func openWithDefaultHandler(_ link: TerminalLink)
@@ -95,7 +99,16 @@ public protocol TerminalEngine {
     var id: TerminalEngineID { get }
     /// The engine's name, as a person would read it.
     var name: String { get }
-    func makeSession() -> any TerminalSession
+    /// A session that starts with this look and behavior. Some of them, such as scrollback,
+    /// can only be set here.
+    func makeSession(appearance: TerminalAppearance, behavior: TerminalBehavior) -> any TerminalSession
+}
+
+extension TerminalEngine {
+    /// A session with the built-in look and behavior.
+    public func makeSession() -> any TerminalSession {
+        makeSession(appearance: .standard, behavior: .standard)
+    }
 }
 
 /// The engines the app has, by id.

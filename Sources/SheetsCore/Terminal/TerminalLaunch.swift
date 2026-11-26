@@ -89,8 +89,10 @@ extension TerminalLaunch {
 
     /// The person's login shell, started as a login shell in a folder.
     ///
-    /// - The shell is the user record's, when it is an absolute path that can run, or else
-    ///   `/bin/zsh`. Its name starts with `-`, which makes it a login shell.
+    /// - The shell is `shell` when that is an absolute path that can run, such as one the
+    ///   config file names, or else the user record's, when it is an absolute path that can
+    ///   run, or else `/bin/zsh`. Its name starts with `-`, which makes it a login shell. It
+    ///   starts with `arguments`.
     /// - It starts in `folder` when that is a folder, or else the home folder.
     /// - The environment is the app's own, without variables that belong to whatever launched
     ///   the app, with the terminal's variables set (`TERM=xterm-256color`,
@@ -101,10 +103,14 @@ extension TerminalLaunch {
     /// Every input is a parameter, so tests can give their own. `loginShell(in:)` gives the
     /// real ones.
     public static func loginShell(
-        in folder: String?, user: TerminalUser, inheritedEnvironment: [String: String], language: String?,
-        region: String?, programVersion: String?, isFolder: (String) -> Bool, isExecutable: (String) -> Bool
+        in folder: String?, shell chosenShell: String? = nil, arguments: [String] = [], user: TerminalUser,
+        inheritedEnvironment: [String: String], language: String?, region: String?, programVersion: String?,
+        isFolder: (String) -> Bool, isExecutable: (String) -> Bool
     ) -> TerminalLaunch {
-        let shell = user.shell.flatMap { $0.hasPrefix("/") && isExecutable($0) ? $0 : nil } ?? fallbackShell
+        func runnable(_ path: String?) -> String? {
+            path.flatMap { $0.hasPrefix("/") && isExecutable($0) ? $0 : nil }
+        }
+        let shell = runnable(chosenShell) ?? runnable(user.shell) ?? fallbackShell
         let start: String
         if let folder, !folder.isEmpty, isFolder(folder) {
             start = folder
@@ -127,15 +133,19 @@ extension TerminalLaunch {
         fill("LANG", lang(language: language, region: region))
 
         let name = "-" + (shell as NSString).lastPathComponent
-        return TerminalLaunch(executable: shell, programName: name, folder: start, environment: environment)
+        return TerminalLaunch(
+            executable: shell, arguments: arguments, programName: name, folder: start, environment: environment)
     }
 
     /// `loginShell` with this Mac's real user, environment, language, and files.
-    public static func loginShell(in folder: String?, programVersion: String?) -> TerminalLaunch {
+    public static func loginShell(
+        in folder: String?, shell: String? = nil, arguments: [String] = [], programVersion: String?
+    ) -> TerminalLaunch {
         let files = FileManager.default
         let locale = Locale.current
         return loginShell(
-            in: folder, user: .current(), inheritedEnvironment: ProcessInfo.processInfo.environment,
+            in: folder, shell: shell, arguments: arguments, user: .current(),
+            inheritedEnvironment: ProcessInfo.processInfo.environment,
             language: locale.language.languageCode?.identifier, region: locale.region?.identifier,
             programVersion: programVersion,
             isFolder: { path in

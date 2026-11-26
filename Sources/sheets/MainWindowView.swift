@@ -28,7 +28,8 @@ struct MainWindowView: View {
                 PlaceholderSheet(pane: pane)
             case .settings:
                 if let section = SettingsSection(paneID: pane.id) {
-                    SettingsSectionSheet(section: section, updater: updater, buildInfo: buildInfo)
+                    SettingsSectionSheet(
+                        section: section, updater: updater, buildInfo: buildInfo, config: model.config)
                 } else {
                     SettingsSheet(openedID: level.openedID, open: open)
                 }
@@ -44,7 +45,6 @@ struct MainWindowView: View {
 struct SidebarSheet: View {
     let model: SheetsModel
     let isCovered: Bool
-    @AppStorage(Experiment.dragToMove.key) private var dragToMove = false
     /// The row being dragged, and where it would land, while the drag experiment is on.
     @State private var dragged: PaneID?
     @State private var dropTarget: SidebarDropTarget?
@@ -67,7 +67,7 @@ struct SidebarSheet: View {
                             ) { model.show(row.id) }
                             .contextMenu { PaneContextMenu(model: model, id: row.id) }
                             .modifier(SidebarRowDragging(
-                                model: model, row: row, isOn: dragToMove, dragged: $dragged, target: $dropTarget))
+                                model: model, row: row, isOn: model.isOn(.dragToMove), dragged: $dragged, target: $dropTarget))
                         }
                     }
                     .padding(.vertical, 8)

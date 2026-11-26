@@ -238,6 +238,21 @@ import Testing
         #expect(fake(store, ID.scratch)?.appearances.count == 2)
     }
 
+    @Test func aSessionIsMadeWithTheBehaviorAndGetsChangesToIt() {
+        let store = store()
+        var behavior = TerminalBehavior.standard
+        behavior.scrollbackLines = 50
+        store.behavior = behavior
+        store.sync(tree: tree, stack: SheetStack([ID.scratch]))
+        #expect(fake(store, ID.scratch)?.startingBehavior.scrollbackLines == 50)
+        #expect(fake(store, ID.scratch)?.behaviors == [behavior])
+        var meta = behavior
+        meta.optionAsMeta = .both
+        store.behavior = meta
+        store.behavior = meta
+        #expect(fake(store, ID.scratch)?.behaviors == [behavior, meta])
+    }
+
     // MARK: Escape
 
     @Test func escapeGoesToARunningTerminalOnTop() {

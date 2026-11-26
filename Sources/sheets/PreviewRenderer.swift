@@ -4,7 +4,10 @@ import SwiftUI
 
 /// `--render-previews <folder>`: draws the main window's key states offscreen with the sample
 /// panes, writes a PNG of each in light and dark, and exits. It never puts a window on screen,
-/// never takes focus, and never reads or writes the app's real preferences.
+/// never takes focus, and never reads or writes the app's real preferences or config file.
+///
+/// The renders of Settings, Terminal with a config file read the file `SHEETS_CONFIG_PATH`
+/// names, which `scripts/render-previews.sh` writes. Every other render uses the defaults.
 @MainActor
 enum PreviewRenderer {
     static let argument = "--render-previews"
@@ -40,13 +43,29 @@ enum PreviewRenderer {
                 TerminalLaunch(executable: "/bin/zsh", folder: pane.folder ?? home, environment: [:])
             }
         }
+        // The config file as Settings shows it, the same on any Mac.
+        let shownConfigPath = "~/.config/sheets/config"
+        // No config file: a path in a folder that is never made.
+        func defaultConfig() -> ConfigStore {
+            let path = FileManager.default.temporaryDirectory
+                .appending(path: "sheets-preview-\(UUID().uuidString)/config").path
+            return ConfigStore(path: path, displayPath: shownConfigPath, watches: false)
+        }
+        // The sample config file the render script writes, or none when it was not given.
+        func sampleConfig() -> ConfigStore {
+            guard let path = ProcessInfo.processInfo.environment[ConfigFileLocation.overrideVariable],
+                  !path.isEmpty
+            else { return defaultConfig() }
+            return ConfigStore(path: path, displayPath: shownConfigPath, watches: false)
+        }
         func sample(
-            _ stack: SheetStack, renaming: PaneID? = nil, shellReports: [(PaneID, TerminalEvent)] = []
+            _ stack: SheetStack, renaming: PaneID? = nil, shellReports: [(PaneID, TerminalEvent)] = [],
+            config: @escaping @MainActor () -> ConfigStore = defaultConfig
         ) -> () -> SheetsModel {
             {
                 let model = SheetsModel(
                     tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false, homeFolder: home,
-                    terminals: terminals())
+                    terminals: terminals(), config: config())
                 model.renaming = renaming
                 for (id, event) in shellReports {
                     model.terminals?.record(for: id)?.session.events?(event)
@@ -67,16 +86,24 @@ enum PreviewRenderer {
             ("page-over-terminal", sample(SheetStack([ID.acmeWeb, ID.devServer, ID.localhost]))),
             ("settings-open", sample(SheetStack([settings]))),
             ("settings-general-open", sample(SheetStack([settings, SettingsSection.general.paneID]))),
+            ("settings-terminal-open", sample(SheetStack([settings, SettingsSection.terminal.paneID]))),
+            ("settings-terminal-with-config", sample(
+                SheetStack([settings, SettingsSection.terminal.paneID]), config: sampleConfig)),
+            ("settings-terminal-with-config-full", sample(
+                SheetStack([settings, SettingsSection.terminal.paneID]), config: sampleConfig)),
+            ("terminal-with-config", sample(SheetStack([ID.acmeWeb, ID.devServer]), config: sampleConfig)),
             ("settings-experiments-open", sample(SheetStack([settings, SettingsSection.experiments.paneID]))),
             ("renaming-in-sidebar", sample(SheetStack([ID.acmeWeb, ID.claude]), renaming: ID.claude)),
             ("first-launch", {
                 let start = PaneEditor.firstLaunch(homeFolder: home, id: "first")
                 return SheetsModel(
                     tree: start.tree, defaults: defaults, stack: start.stack, animates: false, homeFolder: home,
-                    terminals: terminals())
+                    terminals: terminals(), config: defaultConfig())
             }),
             (hoveredButton, sample(SheetStack([ID.acmeWeb, ID.devServer]))),
         ]
+        // Renders drawn taller than the window, to show a whole long sheet.
+        let tallHeights: [String: CGFloat] = ["settings-terminal-with-config-full": 1640]
         let looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
 
         var written: [URL] = []
@@ -90,7 +117,8 @@ enum PreviewRenderer {
                     }
                     .defaultAppStorage(defaults)
                 let url = folder.appending(path: "\(name)-\(look).png")
-                guard let rep = draw(view, appearance: appearance),
+                let size = CGSize(width: size.width, height: tallHeights[name] ?? size.height)
+                guard let rep = draw(view, appearance: appearance, size: size),
                       let data = rep.representation(using: .png, properties: [:])
                 else {
                     print("Could not render \(name)-\(look)")
@@ -109,7 +137,7 @@ enum PreviewRenderer {
 
     /// Draws a view in a titled window that is never put on screen, with its title bar, so the
     /// render shows the bar the app's window has.
-    private static func draw(_ view: some View, appearance: NSAppearance.Name) -> NSBitmapImageRep? {
+    private static func draw(_ view: some View, appearance: NSAppearance.Name, size: CGSize) -> NSBitmapImageRep? {
         let root = view
             .frame(width: size.width, height: size.height)
             // A real window draws its background behind the content. This one is never on
@@ -144,7 +172,9 @@ private struct StandInTerminalEngine: TerminalEngine {
     let id = TerminalEngineID.standard
     let name = "Stand-in"
 
-    func makeSession() -> any TerminalSession { StandInTerminalSession() }
+    func makeSession(appearance: TerminalAppearance, behavior: TerminalBehavior) -> any TerminalSession {
+        StandInTerminalSession()
+    }
 }
 
 @MainActor
@@ -154,6 +184,7 @@ private final class StandInTerminalSession: TerminalSession {
     func resize(columns: Int, rows: Int) {}
     func send(_ text: String) {}
     func apply(_ appearance: TerminalAppearance) {}
+    func apply(_ behavior: TerminalBehavior) {}
     func openWithDefaultHandler(_ link: TerminalLink) {}
     func end() {}
 }

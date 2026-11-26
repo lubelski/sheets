@@ -15,15 +15,16 @@ struct TerminalSheet: View {
 
     var body: some View {
         let record = model.terminals?.record(for: pane.id)
+        let appearance = model.terminalAppearance
         VStack(spacing: 0) {
             SheetTitleBar(title: pane.title, detail: record?.title)
             ZStack(alignment: .bottom) {
-                Color(TerminalAppearance.standard.background)
+                Color(appearance.background)
                 Group {
                     if let host = record?.session as? TerminalViewHosting {
                         TerminalHostView(host: host, wantsFocus: isTop && model.renaming == nil)
                     } else {
-                        TerminalStandIn(appearance: .standard)
+                        TerminalStandIn(appearance: appearance)
                     }
                 }
                 // Room between the text and the sheet's edges.
@@ -31,7 +32,9 @@ struct TerminalSheet: View {
                 .padding(.trailing, 4)
                 .padding(.vertical, 6)
                 if let record, !record.status.isRunning {
-                    TerminalEndedLine(status: record.status, isTop: isTop) { model.restartTerminal(pane.id) }
+                    TerminalEndedLine(status: record.status, isTop: isTop, background: appearance.background) {
+                        model.restartTerminal(pane.id)
+                    }
                 }
             }
             .environment(\.colorScheme, .dark)
@@ -44,6 +47,7 @@ struct TerminalSheet: View {
 struct TerminalEndedLine: View {
     let status: TerminalSessionStatus
     let isTop: Bool
+    let background: TerminalColor
     let restart: () -> Void
 
     var body: some View {
@@ -72,7 +76,7 @@ struct TerminalEndedLine: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
         }
-        .background(Color(TerminalAppearance.standard.background).opacity(0.92))
+        .background(Color(background).opacity(0.92))
     }
 
     private var message: String {
@@ -171,9 +175,10 @@ struct TerminalStandIn: View {
     let appearance: TerminalAppearance
 
     var body: some View {
-        let font = Font.system(size: appearance.fontSize, design: .monospaced)
+        let font = appearance.fontName.map { Font.custom($0, size: appearance.fontSize) }
+            ?? Font.system(size: appearance.fontSize, design: .monospaced)
         let prompt = Text("someone@mac ~ % ").foregroundStyle(Color(appearance.palette[2]))
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 2 + appearance.fontSize * (appearance.lineSpacing - 1)) {
             Text("\(prompt)ls")
             Text("Package.swift  README.md  Sources  Tests")
                 .foregroundStyle(Color(appearance.palette[4]))
@@ -181,13 +186,25 @@ struct TerminalStandIn: View {
             Text(" M README.md").foregroundStyle(Color(appearance.palette[1]))
             HStack(spacing: 0) {
                 prompt
-                Rectangle().fill(Color(appearance.cursor)).frame(width: 7, height: appearance.fontSize + 2)
+                cursor
             }
         }
         .font(font)
         .foregroundStyle(Color(appearance.foreground))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityHidden(true)
+    }
+
+    /// The cursor in its shape: a block, a bar, or an underline.
+    private var cursor: some View {
+        let height = appearance.fontSize + 2
+        let width = appearance.fontSize * 0.6
+        return Rectangle()
+            .fill(Color(appearance.cursor))
+            .frame(
+                width: appearance.cursorShape == .bar ? 2 : width,
+                height: appearance.cursorShape == .underline ? 2 : height)
+            .frame(width: width, height: height, alignment: appearance.cursorShape == .underline ? .bottom : .leading)
     }
 }
 
