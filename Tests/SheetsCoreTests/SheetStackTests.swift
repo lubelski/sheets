@@ -68,6 +68,35 @@ import Testing
         #expect(stack.isAtSidebar)
     }
 
+    @Test func openedFromASheetIsTheOneAboveIt() {
+        let stack = SheetStack([ID.acmeWeb, ID.devServer])
+        #expect(stack.opened(from: 0) == ID.acmeWeb)
+        #expect(stack.opened(from: 1) == ID.devServer)
+        #expect(stack.opened(from: 2) == nil)
+        #expect(stack.prefix(1).entries == [ID.acmeWeb])
+        #expect(stack.prefix(0).isAtSidebar)
+        #expect(stack.prefix(5) == stack)
+    }
+
+    @Test func aClickOnACoveredStripGoesBackOrOpensAnotherRow() {
+        let start = SheetStack([ID.acmeWeb, ID.devServer, ID.localhost])
+
+        // Off any row: back to that sheet.
+        var stack = start
+        stack.clickStrip(at: 1, on: nil)
+        #expect(stack.entries == [ID.acmeWeb])
+
+        // On the row already open from it: back to that sheet too.
+        stack = start
+        stack.clickStrip(at: 1, on: ID.devServer)
+        #expect(stack.entries == [ID.acmeWeb])
+
+        // On another row: that row's pane opens in place of everything above.
+        stack = start
+        stack.clickStrip(at: 1, on: ID.claude)
+        #expect(stack.entries == [ID.acmeWeb, ID.claude])
+    }
+
     @Test func descriptionJoinsTheIDs() {
         #expect(SheetStack(["a", "b"]).description == "a/b")
     }
@@ -103,5 +132,31 @@ import Testing
             CGRect(x: 5, y: 7, width: 100, height: 100),
             CGRect(x: 35, y: 17, width: 70, height: 90),
         ])
+    }
+
+    // MARK: Strip widths
+
+    @Test func theSidebarIsTheOnlyStripAtOneSheetUp() {
+        #expect(SheetStackLayout.stripWidths(depth: 0, available: 1000) == [])
+        #expect(SheetStackLayout.stripWidths(depth: 1, available: 1000) == [240])
+    }
+
+    @Test func eachCoveredSheetAboveTheSidebarAsksForTheSameStrip() {
+        #expect(SheetStackLayout.stripWidths(depth: 3, available: 1000) == [240, 64, 64])
+    }
+
+    @Test func olderStripsGiveWayFirstWhenTheWindowIsNarrow() {
+        // 660 wide leaves 100 for strips above the sidebar. Two strips of 64 do not fit, so
+        // the older one narrows to a sliver and the nearest keeps its width.
+        #expect(SheetStackLayout.stripWidths(depth: 3, available: 660) == [240, 20, 64])
+        // At 640 the sliver does not fit either, so it goes. Narrower still, the nearest
+        // strip shrinks.
+        #expect(SheetStackLayout.stripWidths(depth: 3, available: 640) == [240, 0, 64])
+        #expect(SheetStackLayout.stripWidths(depth: 3, available: 600) == [240, 0, 40])
+        #expect(SheetStackLayout.stripWidths(depth: 3, available: 500) == [240, 0, 0])
+    }
+
+    @Test func theSidebarNeverNarrows() {
+        #expect(SheetStackLayout.stripWidths(depth: 4, available: 300).first == 240)
     }
 }
