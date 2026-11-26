@@ -7,6 +7,16 @@ import SwiftUI
 // A covered sheet keeps its layout. It is only covered, dimmed a little, and still: a strip of
 // its leading edge shows, and a click on the strip goes back to it, or opens the row the click
 // landed on. Where each sheet sits comes from `SheetStackLayout` in SheetsCore.
+//
+// Opening a sheet slides it in from the trailing edge, and going back slides it out. Picking
+// a sibling of an open pane, another row from the same list, is a swap: the sheet stays, and
+// only what is on it changes, with a short crossfade that moves up or down. Which change is
+// which comes from `SheetStackChange`, and every duration and distance from `SheetMotion`.
+//
+// A sheet, a dimming, or a sheet's content that is leaving stops taking clicks as soon as it
+// starts to leave. SwiftUI keeps a leaving view in place, on top, until its animation ends,
+// so without that a click on a row just after its sheet closed would land on the leaving
+// view and do nothing.
 
 /// One sheet of the stack, as the stack asks for its content.
 struct SheetLevel: Identifiable {
@@ -17,10 +27,13 @@ struct SheetLevel: Identifiable {
     /// The pane open from this sheet, which its row marks.
     let openedID: PaneID?
     let isCovered: Bool
+    /// The panes of the sheets under this one, above the sidebar, joined by `/`.
+    let under: String
 
-    /// A sheet is known by its depth and its pane, so a different pane at the same depth is a
-    /// new sheet that slides in, not the old one redrawn.
-    var id: String { "\(depth)|\(pane?.id.rawValue ?? "")" }
+    /// A sheet is known by its depth and the sheets under it, not by its own pane. A sibling
+    /// swapped in at the same depth keeps the sheet and changes what is on it. A sheet over a
+    /// different parent is a new sheet, which slides in.
+    var id: String { "\(depth)|\(under)" }
 }
 
 /// Draws the stack. See the top of this file.
@@ -35,7 +48,8 @@ struct SheetStackView<Sheet: View>: View {
         let levels = (0...stack.depth).map { depth in
             SheetLevel(
                 depth: depth, pane: stack.entry(at: depth).flatMap(model.tree.pane),
-                openedID: stack.opened(from: depth), isCovered: depth < stack.depth)
+                openedID: stack.opened(from: depth), isCovered: depth < stack.depth,
+                under: stack.prefix(depth - 1).description)
         }
         GeometryReader { proxy in
             let widths = SheetStackLayout.stripWidths(depth: stack.depth, available: proxy.size.width)
@@ -47,7 +61,7 @@ struct SheetStackView<Sheet: View>: View {
                         .frame(width: frame.width, height: frame.height)
                         .padding(.leading, frame.minX)
                         .padding(.top, frame.minY)
-                        .transition(level.depth == 0 ? .identity : slide)
+                        .transition(level.depth == 0 ? .identity : sheetTransition(width: proxy.size.width))
                         .zIndex(Double(level.depth))
                 }
             }
@@ -67,9 +81,26 @@ struct SheetStackView<Sheet: View>: View {
         }
     }
 
-    /// A short slide in from the trailing edge and back out, or a fade with Reduce Motion on.
-    private var slide: AnyTransition {
-        reduceMotion ? .opacity : .move(edge: .trailing)
+    /// A sheet slides in from the trailing edge, or fades in with Reduce Motion on. It leaves
+    /// by sliding back out, or by fading when a sheet under it swapped, so the swap reads as
+    /// one change.
+    private func sheetTransition(width: CGFloat) -> AnyTransition {
+        func leaving(_ isActive: Bool) -> SheetLeaving {
+            SheetLeaving(model: model, width: width, reduceMotion: reduceMotion, isActive: isActive)
+        }
+        return .asymmetric(
+            insertion: reduceMotion ? .opacity : .move(edge: .trailing),
+            removal: .modifier(active: leaving(true), identity: leaving(false)))
+    }
+
+    /// A sheet's content coming and going inside the sheet, which only a swap does.
+    private func swapTransition(depth: Int) -> AnyTransition {
+        func swapping(_ phase: SheetSwapping.Phase) -> SheetSwapping {
+            SheetSwapping(model: model, depth: depth, reduceMotion: reduceMotion, phase: phase)
+        }
+        return .asymmetric(
+            insertion: .modifier(active: swapping(.entering), identity: swapping(.identity)),
+            removal: .modifier(active: swapping(.leaving), identity: swapping(.identity)))
     }
 
     @ViewBuilder
@@ -78,13 +109,20 @@ struct SheetStackView<Sheet: View>: View {
             sheet(level)
                 .overlay { CoveredDimming(isCovered: level.isCovered).allowsHitTesting(false) }
         } else {
-            sheet(level)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .modifier(CoveredSheet(
-                    isCovered: level.isCovered,
-                    backLabel: "Back to \(level.pane?.title ?? "")",
-                    click: { row in model.clickStrip(at: level.depth, on: row) }))
-                .modifier(SheetCard(depth: level.depth))
+            // The content is known by its pane, so a swap replaces it inside the sheet, which
+            // stays.
+            ZStack(alignment: .topLeading) {
+                sheet(level)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .id(level.pane?.id)
+                    .transition(swapTransition(depth: level.depth))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .modifier(CoveredSheet(
+                isCovered: level.isCovered,
+                backLabel: "Back to \(level.pane?.title ?? "")",
+                click: { row in model.clickStrip(at: level.depth, on: row) }))
+            .modifier(SheetCard(depth: level.depth))
         }
     }
 }
@@ -276,7 +314,76 @@ struct CoveredSheet: ViewModifier {
                     .accessibilityLabel(Text(backLabel))
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { click(nil) }
+                    .transition(.opacity.ignoringClicksWhileLeaving)
                 }
             }
+    }
+}
+
+/// A sheet leaving the stack. Going back slides it out past the trailing edge. When it closes
+/// because a sheet under it swapped, or with Reduce Motion on, it fades. Either way it stops
+/// taking clicks as soon as it starts to leave.
+///
+/// The kind of change is read from the model when the sheet leaves, not when it was last
+/// drawn, since a sheet cannot know beforehand which change will close it.
+private struct SheetLeaving: ViewModifier {
+    let model: SheetsModel
+    /// The stack's width, which takes the sheet fully past the trailing edge.
+    let width: CGFloat
+    let reduceMotion: Bool
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        let fades = reduceMotion || model.change.swapDepth != nil
+        content
+            .opacity(isActive && fades ? 0 : 1)
+            .offset(x: isActive && !fades ? width : 0)
+            .allowsHitTesting(!isActive)
+    }
+}
+
+/// A sheet's content swapping for a sibling's: a crossfade with a short move up or down, by
+/// the two panes' order in their list. Only a fade with Reduce Motion on, or when the order is
+/// not known. The content leaving stops taking clicks at once.
+private struct SheetSwapping: ViewModifier {
+    enum Phase { case identity, entering, leaving }
+
+    let model: SheetsModel
+    let depth: Int
+    let reduceMotion: Bool
+    let phase: Phase
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(phase == .identity ? 1 : 0)
+            .offset(y: offset)
+            .allowsHitTesting(phase != .leaving)
+    }
+
+    private var offset: CGFloat {
+        let change = model.change
+        guard phase != .identity, !reduceMotion, change.swapDepth == depth,
+              let direction = change.swapDirection else { return 0 }
+        return direction.offset(entering: phase == .entering)
+    }
+}
+
+extension AnyTransition {
+    /// The same transition, except that a leaving view stops taking clicks as soon as it starts
+    /// to leave, rather than when its animation ends.
+    var ignoringClicksWhileLeaving: AnyTransition {
+        .asymmetric(
+            insertion: self,
+            removal: combined(with: .modifier(active: IgnoringClicks(isOn: true), identity: IgnoringClicks(isOn: false))))
+    }
+}
+
+/// Turns hit testing off. As a transition's active state it takes effect as soon as the view
+/// starts to leave, since it does not animate.
+private struct IgnoringClicks: ViewModifier {
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        content.allowsHitTesting(!isOn)
     }
 }
