@@ -33,6 +33,10 @@ public struct ConfigLine: Hashable, Sendable {
     /// Where the value is in `text`, counted in Unicode scalars, for a setting. Editing a value
     /// replaces just this part, so the key's spelling and a trailing comment stay.
     public let valueRange: Range<Int>?
+    /// For a line whose value could not be read, the bare word where the value should be,
+    /// such as `lots` in `terminal.scrollback-lines = lots`. The loader words its issue from
+    /// what the key takes, since the parser does not know the keys.
+    public var unreadableWord: String? = nil
 
     /// The key the line sets, valid or not.
     public var key: String? {
@@ -71,8 +75,10 @@ public enum ConfigParser {
     /// Reads one line.
     public static func parseLine(_ text: String, number: Int = 1, terminator: String = "") -> ConfigLine {
         var scanner = Scanner(Array(text.unicodeScalars))
-        func line(_ content: ConfigLine.Content, value: Range<Int>? = nil) -> ConfigLine {
-            ConfigLine(number: number, text: text, terminator: terminator, content: content, valueRange: value)
+        func line(_ content: ConfigLine.Content, value: Range<Int>? = nil, word: String? = nil) -> ConfigLine {
+            ConfigLine(
+                number: number, text: text, terminator: terminator, content: content, valueRange: value,
+                unreadableWord: word)
         }
         scanner.skipSpace()
         guard let first = scanner.peek() else { return line(.blank) }
@@ -98,7 +104,7 @@ public enum ConfigParser {
         do {
             value = try scanner.value()
         } catch {
-            return line(.invalid(key: key, message: error.message))
+            return line(.invalid(key: key, message: error.message), word: error.word)
         }
         let end = scanner.position
         scanner.skipSpace()
@@ -112,7 +118,12 @@ public enum ConfigParser {
 /// What went wrong reading a line.
 struct ConfigSyntaxError: Error {
     let message: String
-    init(_ message: String) { self.message = message }
+    /// The bare word that is not a value, when that is what went wrong.
+    var word: String? = nil
+    init(_ message: String, word: String? = nil) {
+        self.message = message
+        self.word = word
+    }
 }
 
 /// Reads TOML from a line's Unicode scalars.
@@ -300,7 +311,7 @@ private struct Scanner {
         }
         if word.wholeMatch(of: #/[+-]?(0|[1-9](_?[0-9])*)/#) != nil {
             guard let integer = Int(word.replacing("_", with: "")) else {
-                throw ConfigSyntaxError("\(word) is too large.")
+                throw ConfigSyntaxError("\(word) is too large.", word: word)
             }
             return .integer(integer)
         }
@@ -310,11 +321,10 @@ private struct Scanner {
             return .float(float)
         }
         if word.wholeMatch(of: #/[+-]?0[xob][0-9A-Fa-f_]+/#) != nil {
-            throw ConfigSyntaxError("Write \(word) as a decimal number.")
+            throw ConfigSyntaxError("Write \(word) as a decimal number.", word: word)
         }
-        if word.first?.isLetter ?? false {
-            throw ConfigSyntaxError("\(word) needs quotes to be a string: \"\(word)\".")
-        }
-        throw ConfigSyntaxError("\(word) is not a value TOML knows: use a string in double quotes, a number, true or false, or an array in brackets.")
+        throw ConfigSyntaxError(
+            "\(word) is not a value TOML knows: use a string in double quotes, a number, true or false, or an array in brackets.",
+            word: word)
     }
 }

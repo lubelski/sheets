@@ -74,7 +74,9 @@ import Testing
         #expect(value("true") == .bool(true))
         #expect(value("false") == .bool(false))
         #expect(message("key = True")?.contains("quotes") == true)
-        #expect(message("key = yes")?.contains("\"yes\"") == true)
+        #expect(message("key = yes")?.contains("not a value TOML knows") == true)
+        #expect(ConfigParser.parseLine("key = yes").unreadableWord == "yes")
+        #expect(ConfigParser.parseLine("key = \"yes").unreadableWord == nil)
     }
 
     @Test func arraysStayOnOneLine() {

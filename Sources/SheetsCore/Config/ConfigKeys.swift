@@ -125,6 +125,27 @@ public struct ConfigKeyDefinition: Hashable, Sendable, Identifiable {
         self.timing = timing
     }
 
+    /// The issue for a line whose value is a bare word that is not a TOML value, such as
+    /// `lots` or `bar`, worded from what this key takes, so following it gives a good line.
+    /// Quotes are suggested only for a key that takes a string, with the quoted line shown.
+    public func unreadableValueMessage(_ word: String) -> String {
+        switch kind {
+        case .string, .path:
+            return "\(key) needs its value in double quotes: \(key) = \(ConfigValue.string(word).tomlText)"
+        case .choice(let names):
+            if names.contains(word) {
+                return "\(key) needs its value in double quotes: \(key) = \(ConfigValue.string(word).tomlText)"
+            }
+            return "\(key) needs " + kind.expectation + "."
+        case .integer, .number, .bool, .color, .colors, .strings:
+            let example = (defaultValue ?? self.example).map { ", such as \($0.tomlText)" } ?? ""
+            switch kind {
+            case .colors, .strings, .bool, .color: return "\(key) needs \(kind.expectation)."
+            default: return "\(key) needs \(kind.expectation)\(example)."
+            }
+        }
+    }
+
     /// The value when it is allowed for this key, or an issue's message saying what it must be.
     public func check(_ value: ConfigValue) -> Result<ConfigValue, ConfigValueProblem> {
         kind.check(value)

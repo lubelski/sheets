@@ -156,6 +156,37 @@ import Testing
         #expect(third.config.terminalBehavior.bell == .none)
     }
 
+    @Test func anUnquotedWordIsWordedFromWhatTheKeyTakes() {
+        func message(_ line: String) -> String? { Config.load(line).issues.first?.message }
+        #expect(message("terminal.scrollback-lines = lots")
+            == "terminal.scrollback-lines needs a whole number from 0 to 1000000, such as 10000.")
+        #expect(message("terminal.font-size = big")
+            == "terminal.font-size needs a number from 6 to 72, such as 12.")
+        #expect(message("terminal.font-size = 12pt")
+            == "terminal.font-size needs a number from 6 to 72, such as 12.")
+        #expect(message("terminal.cursor-style = beam")
+            == #"terminal.cursor-style needs one of "block", "underline", "bar"."#)
+        #expect(message("terminal.cursor-style = bar  # thin")
+            == #"terminal.cursor-style needs its value in double quotes: terminal.cursor-style = "bar""#)
+        #expect(message("terminal.font-family = Menlo")
+            == #"terminal.font-family needs its value in double quotes: terminal.font-family = "Menlo""#)
+        #expect(message("terminal.copy-on-select = yes") == "terminal.copy-on-select needs true or false.")
+        #expect(message("terminal.background = black")
+            == ##"terminal.background needs a color such as "#1D1E21"."##)
+        #expect(message("terminal.palette = [red]")?.hasPrefix("terminal.palette needs an array of exactly 16 colors") == true)
+        // An unknown key keeps the parser's generic message.
+        #expect(message("terminal.colour = white")
+            == "terminal.colour: white is not a value TOML knows: use a string in double quotes, a number, true or false, or an array in brackets.")
+        // Other syntax errors keep the parser's message, after the key.
+        #expect(message("terminal.font-family = \"Menlo") == "terminal.font-family: A string is missing its closing \".")
+    }
+
+    @Test func followingTheAdviceGivesAGoodLine() {
+        #expect(Config.load(#"terminal.cursor-style = "bar""#).issues.isEmpty)
+        #expect(Config.load(#"terminal.font-family = "Menlo""#).issues.isEmpty)
+        #expect(Config.load("terminal.scrollback-lines = 10000").issues.isEmpty)
+    }
+
     @Test func aWrongTypeIsAnError() {
         let loaded = Config.load("terminal.copy-on-select = \"yes\"\nterminal.palette = [\"#000000\"]")
         #expect(loaded.issues.map(\.line) == [1, 2])

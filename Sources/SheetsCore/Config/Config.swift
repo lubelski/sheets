@@ -67,9 +67,17 @@ public struct Config: Hashable, Sendable {
             case .blank, .comment:
                 continue
             case .invalid(let key, let message):
-                if let key, ConfigKeys.definition(for: key) != nil { badKeys.insert(key) }
-                issues.append(ConfigIssue(
-                    line: line.number, severity: .error, key: key, message: key.map { "\($0): \(message)" } ?? message))
+                let definition = key.flatMap(ConfigKeys.definition(for:))
+                if let definition { badKeys.insert(definition.key) }
+                let text: String
+                if let definition, let word = line.unreadableWord {
+                    text = definition.unreadableValueMessage(word)
+                } else if let key {
+                    text = "\(key): \(message)"
+                } else {
+                    text = message
+                }
+                issues.append(ConfigIssue(line: line.number, severity: .error, key: key, message: text))
             case .setting(let key, let value):
                 guard let definition = ConfigKeys.definition(for: key) else {
                     issues.append(ConfigIssue(
