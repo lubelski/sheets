@@ -39,13 +39,21 @@ public struct Pane: Identifiable, Hashable, Sendable, Codable {
     public var title: String
     /// The panes under this one, in the order the sidebar lists them.
     public var children: [Pane]
+    /// A folder on disk, as a path. A terminal starts in its folder. A group's folder is where
+    /// new terminals under it start. Nil when the pane has none, and always nil for a page.
+    public var folder: String?
 
-    public init(id: PaneID, kind: PaneKind, title: String, children: [Pane] = []) {
+    public init(id: PaneID, kind: PaneKind, title: String, children: [Pane] = [], folder: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
         self.children = children
+        self.folder = folder
     }
+
+    /// True for Settings and its sections. They are part of the app, not the person's own
+    /// panes, so they cannot be closed, renamed, or moved, and nothing can be added under them.
+    public var isFixed: Bool { kind == .settings }
 }
 
 extension Pane {

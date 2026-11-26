@@ -5,7 +5,7 @@ import Foundation
 /// Panes at the top level have no parent. Each id appears once in the whole tree.
 public struct PaneTree: Hashable, Sendable, Codable {
     /// The top-level panes, in sidebar order.
-    public private(set) var roots: [Pane]
+    public internal(set) var roots: [Pane]
 
     /// Makes a tree from top-level panes. The caller keeps ids unique.
     public init(roots: [Pane] = []) {

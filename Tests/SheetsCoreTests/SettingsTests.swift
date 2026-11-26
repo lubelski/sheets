@@ -89,8 +89,13 @@ import Testing
         #expect(SettingsSectionMemory(defaults: defaults).section == nil)
     }
 
-    @Test func thereAreNoExperimentsYet() {
-        #expect(Experiment.allCases.isEmpty)
+    @Test func experimentsAreOffUntilTurnedOn() {
+        let defaults = freshDefaults()
+        #expect(Experiment.allCases == [.dragToMove])
+        #expect(Experiment.allCases.allSatisfy { !$0.isOn(in: defaults) })
+        defaults.set(true, forKey: Experiment.dragToMove.key)
+        #expect(Experiment.dragToMove.isOn(in: defaults))
+        #expect(Set(Experiment.allCases.map(\.key)).count == Experiment.allCases.count)
     }
 
     @Test func signingIsDescribedInWords() {
