@@ -31,20 +31,37 @@ enum PreviewRenderer {
         let updater = AppUpdater.unavailable()
         typealias ID = SamplePanes.ID
         let settings = SettingsSection.settingsID
-        let states: [(String, SheetStack)] = [
-            ("sidebar", SheetStack()),
-            ("group-open", SheetStack([ID.acmeWeb])),
-            ("terminal-over-group", SheetStack([ID.acmeWeb, ID.devServer])),
-            ("page-over-terminal", SheetStack([ID.acmeWeb, ID.devServer, ID.localhost])),
-            ("settings-open", SheetStack([settings])),
-            ("settings-general-open", SheetStack([settings, SettingsSection.general.paneID])),
+        // A placeholder home folder, so the first-launch render names no real one.
+        let home = "/home/someone"
+        func sample(_ stack: SheetStack, renaming: PaneID? = nil) -> () -> SheetsModel {
+            {
+                let model = SheetsModel(
+                    tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false, homeFolder: home)
+                model.renaming = renaming
+                return model
+            }
+        }
+        let states: [(String, () -> SheetsModel)] = [
+            ("sidebar", sample(SheetStack())),
+            ("group-open", sample(SheetStack([ID.acmeWeb]))),
+            ("terminal-over-group", sample(SheetStack([ID.acmeWeb, ID.devServer]))),
+            ("page-over-terminal", sample(SheetStack([ID.acmeWeb, ID.devServer, ID.localhost]))),
+            ("settings-open", sample(SheetStack([settings]))),
+            ("settings-general-open", sample(SheetStack([settings, SettingsSection.general.paneID]))),
+            ("settings-experiments-open", sample(SheetStack([settings, SettingsSection.experiments.paneID]))),
+            ("renaming-in-sidebar", sample(SheetStack([ID.acmeWeb, ID.claude]), renaming: ID.claude)),
+            ("first-launch", {
+                let start = PaneEditor.firstLaunch(homeFolder: home, id: "first")
+                return SheetsModel(
+                    tree: start.tree, defaults: defaults, stack: start.stack, animates: false, homeFolder: home)
+            }),
         ]
         let looks: [(String, NSAppearance.Name)] = [("light", .aqua), ("dark", .darkAqua)]
 
         var written: [URL] = []
-        for (name, stack) in states {
+        for (name, makeModel) in states {
             for (look, appearance) in looks {
-                let model = SheetsModel(tree: SamplePanes.tree, defaults: defaults, stack: stack, animates: false)
+                let model = makeModel()
                 let view = MainWindowView(model: model, updater: updater, buildInfo: buildInfo)
                     .defaultAppStorage(defaults)
                 let url = folder.appending(path: "\(name)-\(look).png")

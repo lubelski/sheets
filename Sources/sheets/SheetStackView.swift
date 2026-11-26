@@ -70,8 +70,9 @@ struct SheetStackView<Sheet: View>: View {
         .clipped()
         .background {
             // Escape closes the top sheet. With only the sidebar there is nothing to close, so
-            // there is no button and Escape means what it meant before.
-            if !stack.isAtSidebar {
+            // there is no button and Escape means what it meant before. While a title is being
+            // renamed, Escape belongs to the rename.
+            if !stack.isAtSidebar && model.renaming == nil {
                 Button("Back") { model.goBack() }
                     .keyboardShortcut(.cancelAction)
                     .opacity(0)

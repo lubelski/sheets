@@ -103,18 +103,33 @@ public struct SettingsSectionMemory {
 }
 
 /// Features being tried. Each is a switch in Settings, off by default, and with the switch
-/// off the app is as it was. There are none yet.
+/// off the app is as it was.
 public enum Experiment: CaseIterable, Sendable, Identifiable {
+    /// Dragging a sidebar row onto another row to move its pane: above or below the row, or
+    /// into it as its last child.
+    case dragToMove
+
     public var id: String { key }
 
     /// The `UserDefaults` key for the switch.
     public var key: String {
-        switch self {}
+        switch self {
+        case .dragToMove: "ExperimentDragToMove"
+        }
     }
 
     /// The switch's label in Settings.
     public var title: String {
-        switch self {}
+        switch self {
+        case .dragToMove: "Drag sidebar rows to move panes"
+        }
+    }
+
+    /// The line under the switch, saying what it does.
+    public var summary: String {
+        switch self {
+        case .dragToMove: "Drop a row near the top or bottom of another row to put it above or below, or on the middle to put it inside."
+        }
     }
 
     /// Whether the switch is on. Every experiment is off until it is turned on.
